@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/Character.h"
+#include "Role/HeroBase.h"
 #include "liveCharacter.generated.h"
 
 class UCameraComponent;
@@ -13,7 +13,7 @@ class USpringArmComponent;
  *  A controllable top-down perspective character
  */
 UCLASS(abstract)
-class AliveCharacter : public ACharacter
+class AliveCharacter : public AHeroBase
 {
 	GENERATED_BODY()
 

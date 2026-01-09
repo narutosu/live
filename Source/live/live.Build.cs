@@ -23,7 +23,14 @@ public class live : ModuleRules
 			"Slate"
 		});
 
-		PrivateDependencyModuleNames.AddRange(new string[] { });
+		PrivateDependencyModuleNames.AddRange(new string[]
+		{
+			"GameplayAbilities",
+			"GameplayTags",
+			"GameplayTasks",
+			"Slate",
+			"SlateCore",
+		});
 
 		PublicIncludePaths.AddRange(new string[] {
 			"live",
