@@ -19,7 +19,7 @@ public:
 	TArray<FItemDropEntry> DefaultDropTable;
 
 	UFUNCTION(BlueprintCallable, Category = "Item")
-	const FItemConfigEntry* GetItemConfig(int32 ItemID) const;
+	const FItemConfigEntry GetItemConfig(int32 ItemID) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Item")
 	TArray<FItemConfigEntry> GetItemsByType(EItemType ItemType) const;

@@ -6,7 +6,7 @@ FItemData FItemConfigEntry::ToItemData() const
 {
 	FItemData ItemData;
 	ItemData.ItemID = ItemID;
-	ItemData.ItemName = ItemName;
+	ItemData.ItemName = FName(ItemName.ToString());
 	ItemData.Description = Description;
 	ItemData.ItemType = ItemType;
 	ItemData.EquipmentSlot = EquipmentSlot;

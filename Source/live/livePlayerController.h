@@ -12,7 +12,21 @@ class UInputMappingContext;
 class UInputAction;
 class UPathFollowingComponent;
 
-DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
+/** 追踪成功时的委托 */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTrackingSuccessDelegate, class ARoleBase*, Target);
+
+/** 角色行为状态枚举 */
+UENUM(BlueprintType)
+enum class ECharacterBehaviorState : uint8
+{
+	Idle UMETA(DisplayName = "站立"),
+	Moving UMETA(DisplayName = "移动"),
+	Tracking UMETA(DisplayName = "追踪"),
+	Stunned UMETA(DisplayName = "眩晕")
+};
+
+/** 状态切换时的委托 */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnStateChangedDelegate, ECharacterBehaviorState, NewState, ECharacterBehaviorState, OldState);
 
 /**
  *  Player controller for a top-down perspective game.
@@ -48,6 +62,10 @@ protected:
 	/** Jump Input Action */
 	UPROPERTY(EditAnywhere, Category="Input")
 	TObjectPtr<UInputAction> SetDestinationTouchAction;
+	
+	/** Jump Input Action */
+	UPROPERTY(EditAnywhere, Category="Input")
+	TObjectPtr<UInputAction> AutoAttackAction;
 
 	/** True if the controlled character should navigate to the mouse cursor. */
 	uint32 bMoveToMouseCursor : 1;
@@ -60,6 +78,45 @@ protected:
 
 	/** Time that the click input has been pressed */
 	float FollowTime = 0.0f;
+
+	/** 追踪目标 */
+	UPROPERTY(VisibleAnywhere, Category = "AI")
+	TObjectPtr<class ARoleBase> TrackedTarget;
+	
+	FName TrackingSuccessToCast = FName("Normal_Attack");
+
+	/** 追踪成功的距离阈值 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
+	float TrackingSuccessDistance = 100.0f;
+
+	/** 追踪更新间隔（秒） */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
+	float TrackingUpdateInterval = 0.1f;
+
+	/** 追踪定时器句柄 */
+	FTimerHandle TrackingTimerHandle;
+
+	/** 是否正在追踪 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI")
+	bool bIsTracking = false;
+
+	/** 是否是自动攻击触发的追踪 */
+	bool bIsAutoAttackTracking = false;
+
+	/** 追踪成功时的委托 */
+	UPROPERTY(BlueprintAssignable, Category = "AI")
+	FOnTrackingSuccessDelegate OnTrackingSuccessDelegate;
+
+	/** 当前角色行为状态 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI")
+	ECharacterBehaviorState CurrentState = ECharacterBehaviorState::Idle;
+
+	/** 状态切换时的委托 */
+	UPROPERTY(BlueprintAssignable, Category = "AI")
+	FOnStateChangedDelegate OnStateChangedDelegate;
+
+	/** 眩晕定时器句柄 */
+	FTimerHandle StunTimerHandle;
 
 public:
 
@@ -78,8 +135,80 @@ protected:
 	void OnTouchTriggered();
 	void OnTouchReleased();
 
+	/** Auto Attack input handler */
+	void OnAutoAttackTriggered();
+
 	/** Helper function to get the move destination */
 	void UpdateCachedDestination();
+
+	/** 追踪更新回调 */
+	void UpdateTracking();
+
+	/** 设置角色行为状态 */
+	void SetCharacterState(ECharacterBehaviorState NewState);
+
+public:
+	/** 新增：寻找范围内最近的敌人 */
+	UFUNCTION(BlueprintCallable, Category = "AI")
+	class AEnemyBase* FindNearestEnemyInRange(float SearchRadius = 1000.0f, const FVector& SearchOrigin = FVector::ZeroVector);
+
+	/** 新增：开始追踪指定的 RoleBase */
+	UFUNCTION(BlueprintCallable, Category = "AI")
+	void StartTracking(class ARoleBase* Target, float SuccessDistance = 100.0f);
+
+	/** 新增：取消追踪 */
+	UFUNCTION(BlueprintCallable, Category = "AI")
+	void StopTracking();
+
+	/** 新增：获取当前追踪的目标 */
+	UFUNCTION(BlueprintCallable, Category = "AI")
+	class ARoleBase* GetTrackedTarget() const { return TrackedTarget; }
+
+	/** 新增：检查是否正在追踪 */
+	UFUNCTION(BlueprintCallable, Category = "AI")
+	bool IsTracking() const { return bIsTracking; }
+
+	/** 新增：切换到站立状态 */
+	UFUNCTION(BlueprintCallable, Category = "AI")
+	void SetIdleState();
+
+	/** 新增：切换到移动状态 */
+	UFUNCTION(BlueprintCallable, Category = "AI")
+	void SetMovingState(const FVector& Destination);
+
+	/** 新增：切换到追踪状态 */
+	UFUNCTION(BlueprintCallable, Category = "AI")
+	void SetTrackingState(class ARoleBase* Target, float SuccessDistance = 100.0f);
+
+	/** 新增：切换到眩晕状态 */
+	UFUNCTION(BlueprintCallable, Category = "AI")
+	void SetStunnedState(float Duration);
+
+	/** 新增：获取当前状态 */
+	UFUNCTION(BlueprintCallable, Category = "AI")
+	ECharacterBehaviorState GetCurrentState() const { return CurrentState; }
+
+	/** 新增：检查是否处于眩晕状态 */
+	UFUNCTION(BlueprintCallable, Category = "AI")
+	bool IsStunned() const { return CurrentState == ECharacterBehaviorState::Stunned; }
+
+	/** 新增：检查是否处于站立状态 */
+	UFUNCTION(BlueprintCallable, Category = "AI")
+	bool IsIdle() const { return CurrentState == ECharacterBehaviorState::Idle; }
+
+	/** 新增：检查是否处于移动状态 */
+	UFUNCTION(BlueprintCallable, Category = "AI")
+	bool IsMoving() const { return CurrentState == ECharacterBehaviorState::Moving; }
+
+	/** 新增：检查是否处于追踪状态 */
+	UFUNCTION(BlueprintCallable, Category = "AI")
+	bool IsTrackingState() const { return CurrentState == ECharacterBehaviorState::Tracking; }
+
+	/** 新增：触发追踪成功技能 */
+	UFUNCTION(BlueprintCallable, Category = "AI")
+	void CastTrackingSuccessSkill();
+
+	/** 新增：停止追踪成功技能 */
+	UFUNCTION(BlueprintCallable, Category = "AI")
+	void StopTrackingSuccessSkill();
 };
-
-

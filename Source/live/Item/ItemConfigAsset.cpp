@@ -3,16 +3,16 @@
 #include "Item/ItemConfigAsset.h"
 #include "Kismet/KismetMathLibrary.h"
 
-const FItemConfigEntry* UItemConfigAsset::GetItemConfig(int32 ItemID) const
+const FItemConfigEntry UItemConfigAsset::GetItemConfig(int32 ItemID) const
 {
 	for (const FItemConfigEntry& Item : AllItems)
 	{
 		if (Item.ItemID == ItemID)
 		{
-			return &Item;
+			return Item;
 		}
 	}
-	return nullptr;
+	return FItemConfigEntry();
 }
 
 TArray<FItemConfigEntry> UItemConfigAsset::GetItemsByType(EItemType ItemType) const
@@ -60,13 +60,8 @@ TArray<int32> UItemConfigAsset::GenerateRandomDrops(const TArray<FItemDropEntry>
 
 	for (const FItemDropEntry& DropEntry : DropTable)
 	{
-		const FItemConfigEntry* ItemConfig = GetItemConfig(DropEntry.ItemID);
-		if (!ItemConfig)
-		{
-			continue;
-		}
-
-		if (ItemConfig->RequiredLevel < MinLevel || ItemConfig->RequiredLevel > MaxLevel)
+		const FItemConfigEntry ItemConfig = GetItemConfig(DropEntry.ItemID);
+		if (ItemConfig.RequiredLevel < MinLevel || ItemConfig.RequiredLevel > MaxLevel)
 		{
 			continue;
 		}

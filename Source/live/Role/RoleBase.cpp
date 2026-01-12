@@ -1,3 +1,4 @@
+
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "Role/RoleBase.h"
@@ -32,6 +33,12 @@ ARoleBase::ARoleBase()
 void ARoleBase::PossessedBy(AController* NewController)
 {
 	Super::PossessedBy(NewController);
+	//初始化角色技能
+	if (GetLocalRole() == ROLE_Authority && !bAbilitiesInitialized)
+	{
+		ApplyPassiveGameplayEffects();
+		bAbilitiesInitialized = true;
+	}
 }
 
 void ARoleBase::UnPossessed()
@@ -72,8 +79,6 @@ void ARoleBase::BeginPlay()
 		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(RoleAttributeSet->GetHPAttribute()).AddUObject(this, &ARoleBase::HandleHealthChanged);
 		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(RoleAttributeSet->GetManaAttribute()).AddUObject(this, &ARoleBase::HandleManaChanged);
 		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(RoleAttributeSet->GetSpeedAttribute()).AddUObject(this, &ARoleBase::HandleMoveSpeedChanged);
-		
-		bAbilitiesInitialized = true;
 	}
 }
 
@@ -101,13 +106,10 @@ bool ARoleBase::SetCharacterLevel(int32 NewLevel)
 	if (CharacterLevel != NewLevel && NewLevel > 0)
 	{
 		int32 OldLevel = CharacterLevel;
-		// Our level changed so we need to refresh abilities
-		// RemoveStartupGameplayAbilities();
+		RemoveStartupGameplayAbilities();
 		CharacterLevel = NewLevel;
-		// AddStartupGameplayAbilities();
-
+		AddStartupGameplayAbilities();
 		OnLevelChanged.Broadcast(NewLevel, OldLevel);
-
 		return true;
 	}
 	return false;
@@ -149,6 +151,7 @@ void ARoleBase::HandleHealthChanged(const FOnAttributeChangeData& Data)
 	if (bAbilitiesInitialized)
 	{
 		OnHealthChanged(Data.NewValue, Data.OldValue);
+		OnHealthChangedDelegate.Broadcast(Data.NewValue, Data.OldValue);
 	}
 }
 
@@ -175,4 +178,39 @@ void ARoleBase::HandleMoveSpeedChanged(const FOnAttributeChangeData& Data)
 float ARoleBase::GetAttackRate() const
 {
 	return RoleAttributeSet->GetAttackSpeed();
+}
+
+void ARoleBase::ApplyPassiveGameplayEffects()
+{
+	for (TSubclassOf<UGameplayEffect>& GameplayEffect : PassiveGameplayEffects)
+	{
+		FGameplayEffectContextHandle EffectContext = AbilitySystemComponent->MakeEffectContext();
+		EffectContext.AddSourceObject(this);
+
+		FGameplayEffectSpecHandle NewHandle = AbilitySystemComponent->MakeOutgoingSpec(GameplayEffect, GetCharacterLevel(), EffectContext);
+		if (NewHandle.IsValid())
+		{
+			FActiveGameplayEffectHandle ActiveGEHandle = AbilitySystemComponent->ApplyGameplayEffectSpecToTarget(*NewHandle.Data.Get(), AbilitySystemComponent);
+		}
+	}
+}
+
+void ARoleBase::AddStartupGameplayAbilities()
+{
+	if (GetLocalRole() == ROLE_Authority && !bAbilitiesInitialized)
+	{
+		ApplyPassiveGameplayEffects();
+		bAbilitiesInitialized = true;
+	}
+}
+
+void ARoleBase::RemoveStartupGameplayAbilities()
+{
+	if (GetLocalRole() == ROLE_Authority && bAbilitiesInitialized)
+	{
+		FGameplayEffectQuery Query;
+		Query.EffectSource = this;
+		AbilitySystemComponent->RemoveActiveEffects(Query);
+		bAbilitiesInitialized = false;
+	}
 }

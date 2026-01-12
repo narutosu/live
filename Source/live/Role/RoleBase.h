@@ -26,6 +26,11 @@ public:
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnLevelChanged, int32, NewLevel, int32, OldLevel);
 	UPROPERTY(BlueprintAssignable, Category = "Abilities")
 	FOnLevelChanged OnLevelChanged;
+	
+	// 新增：血量变化 Delegate
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHealthChangedDelegate, float, NewHealth, float, OldHealth);
+	UPROPERTY(BlueprintAssignable, Category = "Attributes")
+	FOnHealthChangedDelegate OnHealthChangedDelegate;
 
 	virtual void PossessedBy(AController* NewController) override;
 	virtual void UnPossessed() override;
@@ -125,4 +130,18 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Systems")
 	class UInventoryComponent* InventoryComponent;
+	
+	/** Passive gameplay effects applied on creation */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Abilities)
+	TArray<TSubclassOf<UGameplayEffect>> PassiveGameplayEffects;
+
+	// 新增：应用被动 GameplayEffects
+	UFUNCTION(BlueprintCallable, Category = "Abilities")
+	virtual void ApplyPassiveGameplayEffects();
+	
+	/** Apply the startup gameplay abilities and effects */
+	void AddStartupGameplayAbilities();
+
+	/** Attempts to remove any startup gameplay abilities */
+	void RemoveStartupGameplayAbilities();
 };
