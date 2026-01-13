@@ -18,6 +18,9 @@
 #include "CollisionQueryParams.h"
 #include "Engine/OverlapResult.h"
 #include "UObject/UObjectGlobals.h"
+#include "Skill/SkillManager.h"
+#include "Skill/SkillData.h"
+#include "GAS/Common/RPGGameplayAbility.h"
 
 AlivePlayerController::AlivePlayerController()
 {
@@ -581,8 +584,18 @@ void AlivePlayerController::StopTrackingSuccessSkill()
 		ARoleBase* RoleBase = Cast<ARoleBase>(ControlledPawn);
 		if (RoleBase && RoleBase->GetAbilitySystemComponent())
 		{
-			// 取消所有正在激活的技能
-			RoleBase->GetAbilitySystemComponent()->CancelAllAbilities();
+			// 只取消 TrackingSuccessToCast 技能
+			FSkillData SkillData = USkillManager::Get()->GetSkillData(TrackingSuccessToCast);
+			if (SkillData.SkillID > 0 && SkillData.AbilityClass.IsValid())
+			{
+				// 查找技能的 AbilitySpec
+				FGameplayAbilitySpec* AbilitySpec = RoleBase->GetAbilitySystemComponent()->FindAbilitySpecFromClass(SkillData.AbilityClass.LoadSynchronous());
+				if (AbilitySpec && AbilitySpec->Handle.IsValid())
+				{
+					// 取消特定技能
+					RoleBase->GetAbilitySystemComponent()->CancelAbilityHandle(AbilitySpec->Handle);
+				}
+			}
 		}
 	}
 }
