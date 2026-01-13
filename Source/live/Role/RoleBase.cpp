@@ -9,6 +9,9 @@
 #include "Item/InventoryComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Net/UnrealNetwork.h"
+#include "Animation/AnimMontage.h"
+#include "Animation/AnimInstance.h"
+#include "Components/CapsuleComponent.h"
 
 
 // Sets default values
@@ -76,7 +79,7 @@ void ARoleBase::BeginPlay()
 	if (AbilitySystemComponent && RoleAttributeSet)
 	{
 		// Bind attribute change delegates
-		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(RoleAttributeSet->GetHPAttribute()).AddUObject(this, &ARoleBase::HandleHealthChanged);
+		// AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(RoleAttributeSet->GetHPAttribute()).AddUObject(this, &ARoleBase::HandleHealthChanged);
 		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(RoleAttributeSet->GetManaAttribute()).AddUObject(this, &ARoleBase::HandleManaChanged);
 		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(RoleAttributeSet->GetSpeedAttribute()).AddUObject(this, &ARoleBase::HandleMoveSpeedChanged);
 	}
@@ -145,13 +148,19 @@ float ARoleBase::GetMoveSpeed() const
 	return RoleAttributeSet->GetSpeed();
 }
 
-void ARoleBase::HandleHealthChanged(const FOnAttributeChangeData& Data)
+void ARoleBase::HandleHealthChanged(const FOnAttributeChangeData& Data, bool bIsCriticalHit)
 {
 	// We only call the BP callback if this is not the initial ability setup
 	if (bAbilitiesInitialized)
 	{
-		OnHealthChanged(Data.NewValue, Data.OldValue);
-		OnHealthChangedDelegate.Broadcast(Data.NewValue, Data.OldValue);
+		OnHealthChanged(Data.NewValue, Data.OldValue, bIsCriticalHit);
+		OnHealthChangedDelegate.Broadcast(Data.NewValue, Data.OldValue, bIsCriticalHit);
+		
+		// Check if character died
+		if (Data.NewValue <= 0.0f && Data.OldValue > 0.0f)
+		{
+			Death();
+		}
 	}
 }
 
@@ -213,4 +222,49 @@ void ARoleBase::RemoveStartupGameplayAbilities()
 		AbilitySystemComponent->RemoveActiveEffects(Query);
 		bAbilitiesInitialized = false;
 	}
+}
+
+void ARoleBase::Death()
+{
+	// Broadcast death delegate
+	OnDeathDelegate.Broadcast();
+	
+	// Stop all movement
+	StopMove();
+	
+	// Cancel all abilities
+	if (AbilitySystemComponent)
+	{
+		AbilitySystemComponent->CancelAllAbilities();
+	}
+	
+	// Disable collision
+	if (GetMesh())
+	{
+		GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+	if (GetCapsuleComponent())
+	{
+		GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+	
+	// Play death montage if specified
+	if (DeathMontage)
+	{
+		FOnMontageEnded MontageEndedDelegate;
+		MontageEndedDelegate.BindUObject(this, &ARoleBase::OnDeathMontageEnded);
+		PlayAnimMontage(DeathMontage, 1.0f, NAME_None);
+		GetMesh()->GetAnimInstance()->Montage_SetEndDelegate(MontageEndedDelegate, DeathMontage);
+	}
+	else
+	{
+		// If no montage, destroy immediately
+		Destroy();
+	}
+}
+
+void ARoleBase::OnDeathMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+	// Destroy the character when death montage ends
+	Destroy();
 }

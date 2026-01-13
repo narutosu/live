@@ -1,28 +1,39 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-/*
 #include "RPGDamageExecution.h"
-#include "RPGAttributeSet.h"
+#include "GAS/Attribute/GSRoleAttributeSet.h"
 #include "AbilitySystemComponent.h"
 
 struct RPGDamageStatics
 {
-	DECLARE_ATTRIBUTE_CAPTUREDEF(DefensePower);
-	DECLARE_ATTRIBUTE_CAPTUREDEF(AttackPower);
 	DECLARE_ATTRIBUTE_CAPTUREDEF(Damage);
+	DECLARE_ATTRIBUTE_CAPTUREDEF(CriticalDamageValue);
+	DECLARE_ATTRIBUTE_CAPTUREDEF(Armor);
+	DECLARE_ATTRIBUTE_CAPTUREDEF(Attack);
+	DECLARE_ATTRIBUTE_CAPTUREDEF(CriticalProb);
+	DECLARE_ATTRIBUTE_CAPTUREDEF(CriticalDamage);
 
 	RPGDamageStatics()
 	{
-		// Capture the Target's DefensePower attribute. Do not snapshot it, because we want to use the health value at the moment we apply the execution.
-		DEFINE_ATTRIBUTE_CAPTUREDEF(URPGAttributeSet, DefensePower, Target, false);
+		// Capture the Target's Damage attribute. Do not snapshot it.
+		DEFINE_ATTRIBUTE_CAPTUREDEF(UGSRoleAttributeSet, Damage, Target, false);
 
-		// Capture the Source's AttackPower. We do want to snapshot this at the moment we create the GameplayEffectSpec that will execute the damage.
-		// (imagine we fire a projectile: we create the GE Spec when the projectile is fired. When it hits the target, we want to use the AttackPower at the moment
+		// Capture the Target's CriticalDamageValue attribute. Do not snapshot it.
+		DEFINE_ATTRIBUTE_CAPTUREDEF(UGSRoleAttributeSet, CriticalDamageValue, Target, false);
+
+		// Capture the Target's Armor attribute. Do not snapshot it, because we want to use the armor value at the moment we apply the execution.
+		DEFINE_ATTRIBUTE_CAPTUREDEF(UGSRoleAttributeSet, Armor, Target, false);
+
+		// Capture the Source's Attack. We do want to snapshot this at the moment we create the GameplayEffectSpec that will execute the damage.
+		// (imagine we fire a projectile: we create the GE Spec when the projectile is fired. When it hits the target, we want to use the Attack at the moment
 		// the projectile was launched, not when it hits).
-		DEFINE_ATTRIBUTE_CAPTUREDEF(URPGAttributeSet, AttackPower, Source, true);
+		DEFINE_ATTRIBUTE_CAPTUREDEF(UGSRoleAttributeSet, Attack, Source, true);
 
-		// Also capture the source's raw Damage, which is normally passed in directly via the execution
-		DEFINE_ATTRIBUTE_CAPTUREDEF(URPGAttributeSet, Damage, Source, true);
+		// Capture the Source's CriticalProb. Snapshot it to use the value at the moment the effect is created.
+		DEFINE_ATTRIBUTE_CAPTUREDEF(UGSRoleAttributeSet, CriticalProb, Source, true);
+
+		// Capture the Source's CriticalDamage. Snapshot it to use the value at the moment the effect is created.
+		DEFINE_ATTRIBUTE_CAPTUREDEF(UGSRoleAttributeSet, CriticalDamage, Source, true);
 	}
 };
 
@@ -34,9 +45,12 @@ static const RPGDamageStatics& DamageStatics()
 
 URPGDamageExecution::URPGDamageExecution()
 {
-	RelevantAttributesToCapture.Add(DamageStatics().DefensePowerDef);
-	RelevantAttributesToCapture.Add(DamageStatics().AttackPowerDef);
 	RelevantAttributesToCapture.Add(DamageStatics().DamageDef);
+	RelevantAttributesToCapture.Add(DamageStatics().CriticalDamageValueDef);
+	RelevantAttributesToCapture.Add(DamageStatics().ArmorDef);
+	RelevantAttributesToCapture.Add(DamageStatics().AttackDef);
+	RelevantAttributesToCapture.Add(DamageStatics().CriticalProbDef);
+	RelevantAttributesToCapture.Add(DamageStatics().CriticalDamageDef);
 }
 
 void URPGDamageExecution::Execute_Implementation(const FGameplayEffectCustomExecutionParameters& ExecutionParams, OUT FGameplayEffectCustomExecutionOutput& OutExecutionOutput) const
@@ -58,27 +72,55 @@ void URPGDamageExecution::Execute_Implementation(const FGameplayEffectCustomExec
 	EvaluationParameters.TargetTags = TargetTags;
 
 	// --------------------------------------
-	//	Damage Done = Damage * AttackPower / DefensePower
-	//	If DefensePower is 0, it is treated as 1.0
+	//	Damage Done = Attack * (100 / (100 + Armor)) * CriticalMultiplier
+	//	CriticalMultiplier = 1 + CriticalDamage if critical hit occurs
 	// --------------------------------------
 
-	float DefensePower = 0.f;
-	ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(DamageStatics().DefensePowerDef, EvaluationParameters, DefensePower);
-	if (DefensePower == 0.0f)
+	float Armor = 0.f;
+	ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(DamageStatics().ArmorDef, EvaluationParameters, Armor);
+
+	float Attack = 0.f;
+	ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(DamageStatics().AttackDef, EvaluationParameters, Attack);
+
+	float CriticalProb = 0.f;
+	ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(DamageStatics().CriticalProbDef, EvaluationParameters, CriticalProb);
+
+	float CriticalDamage = 0.f;
+	ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(DamageStatics().CriticalDamageDef, EvaluationParameters, CriticalDamage);
+
+	// Calculate damage reduction based on armor
+	float DamageReduction = 100.0f / (100.0f + Armor);
+	float DamageDone = Attack * DamageReduction;
+
+	// Check for critical hit
+	bool bIsCriticalHit = false;
+	if (CriticalProb > 0.f)
 	{
-		DefensePower = 1.0f;
+		// CriticalProb is a percentage (0-100), convert to 0-1 range for random check
+		float CriticalChance = CriticalProb / 100.0f;
+		bIsCriticalHit = FMath::FRand() < CriticalChance;
 	}
 
-	float AttackPower = 0.f;
-	ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(DamageStatics().AttackPowerDef, EvaluationParameters, AttackPower);
+	// Apply critical damage multiplier if critical hit
+	if (bIsCriticalHit)
+	{
+		// CriticalDamage is a percentage (e.g., 50 means 50% extra damage)
+		float CriticalMultiplier = 1.0f + (CriticalDamage / 100.0f);
+		DamageDone *= CriticalMultiplier;
+	}
 
-	float Damage = 0.f;
-	ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(DamageStatics().DamageDef, EvaluationParameters, Damage);
-
-	float DamageDone = Damage * AttackPower / DefensePower;
+	// Apply damage to the appropriate attribute based on whether it's a critical hit
 	if (DamageDone > 0.f)
 	{
-		OutExecutionOutput.AddOutputModifier(FGameplayModifierEvaluatedData(DamageStatics().DamageProperty, EGameplayModOp::Additive, DamageDone));
+		if (bIsCriticalHit)
+		{
+			// Apply to CriticalDamageValue attribute (will trigger HP reduction in AttributeSet)
+			OutExecutionOutput.AddOutputModifier(FGameplayModifierEvaluatedData(DamageStatics().CriticalDamageValueProperty, EGameplayModOp::Additive, DamageDone));
+		}
+		else
+		{
+			// Apply to Damage attribute (will trigger HP reduction in AttributeSet)
+			OutExecutionOutput.AddOutputModifier(FGameplayModifierEvaluatedData(DamageStatics().DamageProperty, EGameplayModOp::Additive, DamageDone));
+		}
 	}
 }
-*/

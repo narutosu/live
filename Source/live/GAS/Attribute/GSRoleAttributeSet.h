@@ -87,6 +87,17 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "other", ReplicatedUsing = OnRep_Gold)
 	FGameplayAttributeData Gold;
 	ATTRIBUTE_ACCESSORS(UGSRoleAttributeSet, Gold)
+
+	/**
+	 * 伤害相关
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "Damage", ReplicatedUsing = OnRep_Damage)
+	FGameplayAttributeData Damage;
+	ATTRIBUTE_ACCESSORS(UGSRoleAttributeSet, Damage)
+
+	UPROPERTY(BlueprintReadOnly, Category = "Damage", ReplicatedUsing = OnRep_CriticalDamageValue)
+	FGameplayAttributeData CriticalDamageValue;
+	ATTRIBUTE_ACCESSORS(UGSRoleAttributeSet, CriticalDamageValue)
 	
 	virtual void PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue) override;
 	virtual void PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data) override;
@@ -134,4 +145,10 @@ protected:
 
 	UFUNCTION()
     virtual void OnRep_Gold(const FGameplayAttributeData& OldGold);
+
+	UFUNCTION()
+	virtual void OnRep_Damage(const FGameplayAttributeData& OldDamage);
+
+	UFUNCTION()
+	virtual void OnRep_CriticalDamageValue(const FGameplayAttributeData& OldCriticalDamageValue);
 };

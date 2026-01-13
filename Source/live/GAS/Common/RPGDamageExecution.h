@@ -1,15 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-// #pragma once
-//
-// #include "GameplayEffectExecutionCalculation.h"
-// #include "RPGDamageExecution.generated.h"
+#pragma once
+
+#include "GameplayEffectExecutionCalculation.h"
+#include "RPGDamageExecution.generated.h"
 
 /**
  * A damage execution, which allows doing damage by combining a raw Damage number with AttackPower and DefensePower
  * Most games will want to implement multiple game-specific executions
  */
-/*
+
 UCLASS()
 class URPGDamageExecution : public UGameplayEffectExecutionCalculation
 {
@@ -21,4 +21,3 @@ public:
 	virtual void Execute_Implementation(const FGameplayEffectCustomExecutionParameters& ExecutionParams, OUT FGameplayEffectCustomExecutionOutput& OutExecutionOutput) const override;
 
 };
-*/

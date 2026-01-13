@@ -95,6 +95,9 @@ protected:
 
 	/** 追踪定时器句柄 */
 	FTimerHandle TrackingTimerHandle;
+	
+	/** 追踪目标死亡委托句柄 */
+	FDelegateHandle TrackedTargetDeathDelegateHandle;
 
 	/** 是否正在追踪 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI")
@@ -211,4 +214,8 @@ public:
 	/** 新增：停止追踪成功技能 */
 	UFUNCTION(BlueprintCallable, Category = "AI")
 	void StopTrackingSuccessSkill();
+	
+	/** 新增：追踪目标死亡时的回调 */
+	UFUNCTION()
+	void OnTrackedTargetDeath();
 };

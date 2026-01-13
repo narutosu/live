@@ -68,6 +68,52 @@ void UGSRoleAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCall
 			TargetCharacter->HandleManaChanged(ChangeData);
 		}
 	}
+
+	// Handle Damage attribute changes - reduce HP by the damage amount
+	if (Data.EvaluatedData.Attribute == GetDamageAttribute())
+	{
+		if (TargetCharacter)
+		{
+			float DamageAmount = Data.EvaluatedData.Magnitude;
+			if (DamageAmount > 0.f)
+			{
+				// Apply damage to HP
+				float CurrentHP = GetHP();
+				float NewHP = FMath::Clamp(CurrentHP - DamageAmount, 0.0f, GetMaxHP());
+				SetHP(NewHP);
+
+				// Notify about damage taken (non-critical)
+				FOnAttributeChangeData ChangeData;
+				ChangeData.NewValue = NewHP;
+				ChangeData.OldValue = CurrentHP;
+				ChangeData.GEModData = &Data;
+				TargetCharacter->HandleHealthChanged(ChangeData, false); // Not a critical hit
+			}
+		}
+	}
+
+	// Handle CriticalDamageValue attribute changes - reduce HP by the critical damage amount
+	if (Data.EvaluatedData.Attribute == GetCriticalDamageValueAttribute())
+	{
+		if (TargetCharacter)
+		{
+			float CriticalDamageAmount = Data.EvaluatedData.Magnitude;
+			if (CriticalDamageAmount > 0.f)
+			{
+				// Apply critical damage to HP
+				float CurrentHP = GetHP();
+				float NewHP = FMath::Clamp(CurrentHP - CriticalDamageAmount, 0.0f, GetMaxHP());
+				SetHP(NewHP);
+
+				// Notify about critical damage taken
+				FOnAttributeChangeData ChangeData;
+				ChangeData.NewValue = NewHP;
+				ChangeData.OldValue = CurrentHP;
+				ChangeData.GEModData = &Data;
+				TargetCharacter->HandleHealthChanged(ChangeData, true); // Is a critical hit
+			}
+		}
+	}
 }
 
 void UGSRoleAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -89,6 +135,8 @@ void UGSRoleAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& 
 	DOREPLIFETIME_CONDITION_NOTIFY(UGSRoleAttributeSet, Level, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UGSRoleAttributeSet, Speed, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UGSRoleAttributeSet, Gold, COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UGSRoleAttributeSet, Damage, COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UGSRoleAttributeSet, CriticalDamageValue, COND_None, REPNOTIFY_Always);
 }
 
 void UGSRoleAttributeSet::OnRep_HP(const FGameplayAttributeData& OldHP)
@@ -160,4 +208,14 @@ void UGSRoleAttributeSet::OnRep_Speed(const FGameplayAttributeData& OldSpeed)
 void UGSRoleAttributeSet::OnRep_Gold(const FGameplayAttributeData& OldGold)
 {
     GAMEPLAYATTRIBUTE_REPNOTIFY(UGSRoleAttributeSet, Gold, OldGold);
+}
+
+void UGSRoleAttributeSet::OnRep_Damage(const FGameplayAttributeData& OldDamage)
+{
+    GAMEPLAYATTRIBUTE_REPNOTIFY(UGSRoleAttributeSet, Damage, OldDamage);
+}
+
+void UGSRoleAttributeSet::OnRep_CriticalDamageValue(const FGameplayAttributeData& OldCriticalDamageValue)
+{
+    GAMEPLAYATTRIBUTE_REPNOTIFY(UGSRoleAttributeSet, CriticalDamageValue, OldCriticalDamageValue);
 }

@@ -272,6 +272,12 @@ void AlivePlayerController::StartTracking(ARoleBase* Target, float SuccessDistan
 	TrackingSuccessDistance = SuccessDistance;
 	bIsTracking = true;
 
+	// 绑定目标的死亡委托
+	if (TrackedTarget)
+	{
+		TrackedTarget->OnDeathDelegate.AddDynamic(this, &AlivePlayerController::OnTrackedTargetDeath);
+	}
+
 	// 启动追踪定时器
 	UWorld* World = GetWorld();
 	if (World)
@@ -294,6 +300,12 @@ void AlivePlayerController::StopTracking()
 	if (!bIsTracking)
 	{
 		return;
+	}
+
+	// 解绑目标的死亡委托
+	if (TrackedTarget)
+	{
+		TrackedTarget->OnDeathDelegate.Remove(this, GET_FUNCTION_NAME_CHECKED(AlivePlayerController, OnTrackedTargetDeath));
 	}
 
 	// 清除定时器
@@ -598,4 +610,14 @@ void AlivePlayerController::StopTrackingSuccessSkill()
 			}
 		}
 	}
+}
+
+// 新增：追踪目标死亡时的回调
+void AlivePlayerController::OnTrackedTargetDeath()
+{
+	UE_LOG(Loglive, Log, TEXT("OnTrackedTargetDeath: Tracked target died, stopping tracking"));
+	
+	// 停止追踪
+	StopTracking();
+	StopTrackingSuccessSkill();
 }

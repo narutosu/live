@@ -28,9 +28,14 @@ public:
 	FOnLevelChanged OnLevelChanged;
 	
 	// 新增：血量变化 Delegate
-	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHealthChangedDelegate, float, NewHealth, float, OldHealth);
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnHealthChangedDelegate, float, NewHealth, float, OldHealth, bool, bIsCriticalHit);
 	UPROPERTY(BlueprintAssignable, Category = "Attributes")
 	FOnHealthChangedDelegate OnHealthChangedDelegate;
+	
+	// 新增：死亡 Delegate
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeathDelegate);
+	UPROPERTY(BlueprintAssignable, Category = "Character")
+	FOnDeathDelegate OnDeathDelegate;
 
 	virtual void PossessedBy(AController* NewController) override;
 	virtual void UnPossessed() override;
@@ -100,14 +105,14 @@ public:
 	virtual float GetMoveSpeed() const;
 	
 	//属性回调 - 内部使用
-	virtual void HandleHealthChanged(const FOnAttributeChangeData& Data);
+	virtual void HandleHealthChanged(const FOnAttributeChangeData& Data, bool bIsCriticalHit = false);
 	virtual void HandleManaChanged(const FOnAttributeChangeData& Data);
 	virtual void HandleMoveSpeedChanged(const FOnAttributeChangeData& Data);
 
 public:
 	//蓝图可实现的属性变化事件
 	UFUNCTION(BlueprintImplementableEvent, Category = "Attributes")
-	void OnHealthChanged(float NewValue, float OldValue);
+	void OnHealthChanged(float NewValue, float OldValue, bool bIsCriticalHit);
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "Attributes")
 	void OnManaChanged(float NewValue, float OldValue);
@@ -130,6 +135,10 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Systems")
 	class UInventoryComponent* InventoryComponent;
+
+	/** Death montage to play when character dies */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation")
+	class UAnimMontage* DeathMontage;
 	
 	/** Passive gameplay effects applied on creation */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Abilities)
@@ -144,4 +153,12 @@ public:
 
 	/** Attempts to remove any startup gameplay abilities */
 	void RemoveStartupGameplayAbilities();
+
+	/** Handle character death */
+	UFUNCTION(BlueprintCallable, Category = "Character")
+	virtual void Death();
+	
+	/** Called when death montage ends */
+	UFUNCTION()
+	virtual void OnDeathMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 };
