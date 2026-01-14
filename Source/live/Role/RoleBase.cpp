@@ -78,7 +78,7 @@ UGSRoleAttributeSet* ARoleBase::GetRoleAttributeSet() const
 void ARoleBase::BeginPlay()
 {
 	Super::BeginPlay();
-	
+	SkillComponent->LearnSkillByName(FName("DropExp"));
 	if (AbilitySystemComponent && RoleAttributeSet)
 	{
 		// Bind attribute change delegates
@@ -261,6 +261,7 @@ void ARoleBase::RemoveStartupGameplayAbilities()
 
 void ARoleBase::Death()
 {
+	SkillComponent->CastSkillByName(FName("DropExp"));
 	// Broadcast death delegate
 	OnDeathDelegate.Broadcast();
 	
