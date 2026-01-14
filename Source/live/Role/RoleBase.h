@@ -32,6 +32,11 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Attributes")
 	FOnHealthChangedDelegate OnHealthChangedDelegate;
 	
+	// 新增：经验变化 Delegate
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnExperienceChangedDelegate, float, NewExperience, float, OldExperience);
+	UPROPERTY(BlueprintAssignable, Category = "Attributes")
+	FOnExperienceChangedDelegate OnExperienceChangedDelegate;
+	
 	// 新增：死亡 Delegate
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeathDelegate);
 	UPROPERTY(BlueprintAssignable, Category = "Character")
@@ -103,11 +108,24 @@ public:
 	/** Returns current movement speed */
 	UFUNCTION(BlueprintCallable)
 	virtual float GetMoveSpeed() const;
+
+	/** Returns current experience */
+	UFUNCTION(BlueprintCallable)
+	virtual float GetExperience() const;
+
+	/** Returns experience needed to level up */
+	UFUNCTION(BlueprintCallable)
+	virtual float GetExperienceToLevelUp() const;
+
+	/** Sets experience needed to level up */
+	UFUNCTION(BlueprintCallable, Category = "Character")
+	virtual void SetExperienceToLevelUp(float NewExperienceToLevelUp);
 	
 	//属性回调 - 内部使用
 	virtual void HandleHealthChanged(const FOnAttributeChangeData& Data, bool bIsCriticalHit = false);
 	virtual void HandleManaChanged(const FOnAttributeChangeData& Data);
 	virtual void HandleMoveSpeedChanged(const FOnAttributeChangeData& Data);
+	virtual void HandleExperienceChanged(const FOnAttributeChangeData& Data);
 
 public:
 	//蓝图可实现的属性变化事件
@@ -119,6 +137,12 @@ public:
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "Attributes")
 	void OnMoveSpeedChanged(float NewValue, float OldValue);
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Attributes")
+	void OnExperienceChanged(float NewValue, float OldValue);
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Attributes")
+	void OnLevelUp(int32 NewLevel, int32 OldLevel);
 
 public:
 	UFUNCTION(BlueprintCallable)
@@ -135,6 +159,7 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Systems")
 	class UInventoryComponent* InventoryComponent;
+	
 
 	/** Death montage to play when character dies */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation")
@@ -161,4 +186,12 @@ public:
 	/** Called when death montage ends */
 	UFUNCTION()
 	virtual void OnDeathMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+
+	/** Add experience and handle level up */
+	UFUNCTION(BlueprintCallable, Category = "Character")
+	virtual void AddExperience(float ExperienceAmount);
+
+	/** Handle level up logic */
+	UFUNCTION(BlueprintCallable, Category = "Character")
+	virtual void HandleLevelUp();
 };

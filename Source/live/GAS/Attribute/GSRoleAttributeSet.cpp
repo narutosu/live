@@ -133,6 +133,8 @@ void UGSRoleAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& 
 	DOREPLIFETIME_CONDITION_NOTIFY(UGSRoleAttributeSet, Resistance, COND_None, REPNOTIFY_Always);
 	
 	DOREPLIFETIME_CONDITION_NOTIFY(UGSRoleAttributeSet, Level, COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UGSRoleAttributeSet, Experience, COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UGSRoleAttributeSet, ExperienceToLevelUp, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UGSRoleAttributeSet, Speed, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UGSRoleAttributeSet, Gold, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UGSRoleAttributeSet, Damage, COND_None, REPNOTIFY_Always);
@@ -197,6 +199,16 @@ void UGSRoleAttributeSet::OnRep_Resistance(const FGameplayAttributeData& OldResi
 void UGSRoleAttributeSet::OnRep_Level(const FGameplayAttributeData& OldLevel)
 {
     GAMEPLAYATTRIBUTE_REPNOTIFY(UGSRoleAttributeSet, Level, OldLevel);
+}
+
+void UGSRoleAttributeSet::OnRep_Experience(const FGameplayAttributeData& OldExperience)
+{
+	GAMEPLAYATTRIBUTE_REPNOTIFY(UGSRoleAttributeSet, Experience, OldExperience);
+}
+
+void UGSRoleAttributeSet::OnRep_ExperienceToLevelUp(const FGameplayAttributeData& OldExperienceToLevelUp)
+{
+	GAMEPLAYATTRIBUTE_REPNOTIFY(UGSRoleAttributeSet, ExperienceToLevelUp, OldExperienceToLevelUp);
 }
 
 void UGSRoleAttributeSet::OnRep_Speed(const FGameplayAttributeData& OldSpeed)

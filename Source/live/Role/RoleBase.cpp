@@ -39,7 +39,10 @@ void ARoleBase::PossessedBy(AController* NewController)
 	//初始化角色技能
 	if (GetLocalRole() == ROLE_Authority && !bAbilitiesInitialized)
 	{
-		ApplyPassiveGameplayEffects();
+		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(RoleAttributeSet->GetManaAttribute()).AddUObject(this, &ARoleBase::HandleManaChanged);
+		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(RoleAttributeSet->GetSpeedAttribute()).AddUObject(this, &ARoleBase::HandleMoveSpeedChanged);
+		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(RoleAttributeSet->GetExperienceAttribute()).AddUObject(this, &ARoleBase::HandleExperienceChanged);
+		AddStartupGameplayAbilities();
 		bAbilitiesInitialized = true;
 	}
 }
@@ -80,8 +83,25 @@ void ARoleBase::BeginPlay()
 	{
 		// Bind attribute change delegates
 		// AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(RoleAttributeSet->GetHPAttribute()).AddUObject(this, &ARoleBase::HandleHealthChanged);
-		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(RoleAttributeSet->GetManaAttribute()).AddUObject(this, &ARoleBase::HandleManaChanged);
-		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(RoleAttributeSet->GetSpeedAttribute()).AddUObject(this, &ARoleBase::HandleMoveSpeedChanged);
+
+		// Manually trigger attribute change handlers to initialize values
+		// FOnAttributeChangeData ManaData;
+		// ManaData.Attribute = RoleAttributeSet->GetManaAttribute();
+		// ManaData.NewValue = RoleAttributeSet->GetMana();
+		// ManaData.OldValue = RoleAttributeSet->GetMana();
+		// HandleManaChanged(ManaData);
+		//
+		// FOnAttributeChangeData SpeedData;
+		// SpeedData.Attribute = RoleAttributeSet->GetSpeedAttribute();
+		// SpeedData.NewValue = RoleAttributeSet->GetSpeed();
+		// SpeedData.OldValue = RoleAttributeSet->GetSpeed();
+		// HandleMoveSpeedChanged(SpeedData);
+		//
+		// FOnAttributeChangeData ExperienceData;
+		// ExperienceData.Attribute = RoleAttributeSet->GetExperienceAttribute();
+		// ExperienceData.NewValue = RoleAttributeSet->GetExperience();
+		// ExperienceData.OldValue = RoleAttributeSet->GetExperience();
+		// HandleExperienceChanged(ExperienceData);
 	}
 }
 
@@ -148,6 +168,11 @@ float ARoleBase::GetMoveSpeed() const
 	return RoleAttributeSet->GetSpeed();
 }
 
+float ARoleBase::GetExperience() const
+{
+	return RoleAttributeSet->GetExperience();
+}
+
 void ARoleBase::HandleHealthChanged(const FOnAttributeChangeData& Data, bool bIsCriticalHit)
 {
 	// We only call the BP callback if this is not the initial ability setup
@@ -166,21 +191,31 @@ void ARoleBase::HandleHealthChanged(const FOnAttributeChangeData& Data, bool bIs
 
 void ARoleBase::HandleManaChanged(const FOnAttributeChangeData& Data)
 {
-	if (bAbilitiesInitialized)
-	{
-		OnManaChanged(Data.NewValue, Data.OldValue);
-	}
+	OnManaChanged(Data.NewValue, Data.OldValue);
 }
 
 void ARoleBase::HandleMoveSpeedChanged(const FOnAttributeChangeData& Data)
 {
 	// Update the character movement's walk speed
 	GetCharacterMovement()->MaxWalkSpeed = RoleAttributeSet->GetSpeed();
+	OnMoveSpeedChanged(Data.NewValue, Data.OldValue);
+}
+
+void ARoleBase::HandleExperienceChanged(const FOnAttributeChangeData& Data)
+{
+	OnExperienceChanged(Data.NewValue, Data.OldValue);
+	OnExperienceChangedDelegate.Broadcast(Data.NewValue, Data.OldValue);
+		
+	float ExperienceNeeded = RoleAttributeSet->GetExperienceToLevelUp();
 	
-	// Call blueprint event
-	if (bAbilitiesInitialized)
+	// If ExperienceNeeded is 0 or negative, use default value of 100
+	if (ExperienceNeeded <= 0.0f)
 	{
-		OnMoveSpeedChanged(Data.NewValue, Data.OldValue);
+		ExperienceNeeded = 100.0f;
+	}
+	if (Data.NewValue >= ExperienceNeeded)
+	{
+		HandleLevelUp();
 	}
 }
 
@@ -267,4 +302,75 @@ void ARoleBase::OnDeathMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
 	// Destroy the character when death montage ends
 	Destroy();
+}
+
+void ARoleBase::AddExperience(float ExperienceAmount)
+{
+	if (RoleAttributeSet && ExperienceAmount > 0.0f)
+	{
+		float CurrentExperience = RoleAttributeSet->GetExperience();
+		float NewExperience = CurrentExperience + ExperienceAmount;
+		RoleAttributeSet->SetExperience(NewExperience);
+	}
+}
+
+float ARoleBase::GetExperienceToLevelUp() const
+{
+	if (RoleAttributeSet)
+	{
+		return RoleAttributeSet->GetExperienceToLevelUp();
+	}
+	return 100.0f; // Default value
+}
+
+void ARoleBase::SetExperienceToLevelUp(float NewExperienceToLevelUp)
+{
+	if (RoleAttributeSet && NewExperienceToLevelUp > 0.0f)
+	{
+		RoleAttributeSet->SetExperienceToLevelUp(NewExperienceToLevelUp);
+	}
+}
+
+void ARoleBase::HandleLevelUp()
+{
+	if (!RoleAttributeSet)
+	{
+		return;
+	}
+
+	float CurrentExperience = RoleAttributeSet->GetExperience();
+	float ExperienceNeeded = RoleAttributeSet->GetExperienceToLevelUp();
+	
+	// If ExperienceNeeded is 0 or negative, use default value of 100
+	if (ExperienceNeeded <= 0.0f)
+	{
+		ExperienceNeeded = 100.0f;
+	}
+	
+	int32 CurrentLevel = FMath::TruncToInt(RoleAttributeSet->GetLevel());
+	int32 OldLevel = CurrentLevel;
+	
+	// Calculate how many levels to level up (support continuous level up)
+	int32 LevelsToGain = 1;
+	
+	if (LevelsToGain > 0)
+	{
+		// Calculate new level
+		int32 NewLevel = CurrentLevel + LevelsToGain;
+		// Broadcast level up event
+		OnLevelUp(NewLevel, OldLevel);
+		OnLevelChanged.Broadcast(NewLevel, OldLevel);
+		// Update character level
+		CharacterLevel = NewLevel;
+		// Update level in attribute set
+		RoleAttributeSet->SetLevel(NewLevel);
+		
+		// Re-apply abilities for new level
+		RemoveStartupGameplayAbilities();
+		AddStartupGameplayAbilities();
+		
+		// 这里可能再次触发升级
+		float RemainingExperience = CurrentExperience - (LevelsToGain * ExperienceNeeded);
+		RoleAttributeSet->SetExperience(RemainingExperience);
+	}
 }

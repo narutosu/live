@@ -77,6 +77,14 @@ public:
 	FGameplayAttributeData Level;
 	ATTRIBUTE_ACCESSORS(UGSRoleAttributeSet, Level)
 
+	UPROPERTY(BlueprintReadOnly, Category = "Attack", ReplicatedUsing = OnRep_Experience)
+	FGameplayAttributeData Experience;
+	ATTRIBUTE_ACCESSORS(UGSRoleAttributeSet, Experience)
+
+	UPROPERTY(BlueprintReadOnly, Category = "Attack", ReplicatedUsing = OnRep_ExperienceToLevelUp)
+	FGameplayAttributeData ExperienceToLevelUp;
+	ATTRIBUTE_ACCESSORS(UGSRoleAttributeSet, ExperienceToLevelUp)
+
 	/**
      * 其它
      */
@@ -139,6 +147,12 @@ protected:
 
 	UFUNCTION()
     virtual void OnRep_Level(const FGameplayAttributeData& OldLevel);
+
+	UFUNCTION()
+	virtual void OnRep_Experience(const FGameplayAttributeData& OldExperience);
+
+	UFUNCTION()
+	virtual void OnRep_ExperienceToLevelUp(const FGameplayAttributeData& OldExperienceToLevelUp);
 
 	UFUNCTION()
     virtual void OnRep_Speed(const FGameplayAttributeData& OldSpeed);
