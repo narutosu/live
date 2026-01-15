@@ -1,4 +1,3 @@
-
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "Role/RoleBase.h"
@@ -79,6 +78,8 @@ void ARoleBase::BeginPlay()
 {
 	Super::BeginPlay();
 	SkillComponent->LearnSkillByName(FName("DropExp"));
+	SkillComponent->LearnSkillByName(FName("LevelUp"));
+	
 	if (AbilitySystemComponent && RoleAttributeSet)
 	{
 		// Bind attribute change delegates
@@ -110,6 +111,38 @@ void ARoleBase::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	// Handle smooth rotation to target location
+	if (bIsRotatingToTarget)
+	{
+		// Calculate direction to target
+		FVector ActorLocation = GetActorLocation();
+		FVector Direction = TargetRotationLocation - ActorLocation;
+		Direction.Z = 0.0f; // Keep rotation horizontal
+
+		if (Direction.IsNearlyZero())
+		{
+			bIsRotatingToTarget = false;
+			return;
+		}
+
+		// Calculate target rotation
+		FRotator TargetRotation = Direction.Rotation();
+		FRotator CurrentRotation = GetActorRotation();
+
+		// Calculate angle difference
+		float AngleDifference = FMath::Abs(FMath::FindDeltaAngleDegrees(CurrentRotation.Yaw, TargetRotation.Yaw));
+
+		// Check if within tolerance
+		if (AngleDifference <= RotationToleranceAngle)
+		{
+			bIsRotatingToTarget = false;
+			return;
+		}
+
+		// Interpolate rotation
+		FRotator NewRotation = FMath::RInterpTo(CurrentRotation, TargetRotation, DeltaTime, CurrentRotationSpeed);
+		SetActorRotation(NewRotation);
+	}
 }
 
 // Called to bind functionality to input
@@ -361,6 +394,7 @@ void ARoleBase::HandleLevelUp()
 		// Broadcast level up event
 		OnLevelUp(NewLevel, OldLevel);
 		OnLevelChanged.Broadcast(NewLevel, OldLevel);
+		SkillComponent->CastSkillByName(FName("LevelUp"));
 		// Update character level
 		CharacterLevel = NewLevel;
 		// Update level in attribute set
@@ -374,4 +408,11 @@ void ARoleBase::HandleLevelUp()
 		float RemainingExperience = CurrentExperience - (LevelsToGain * ExperienceNeeded);
 		RoleAttributeSet->SetExperience(RemainingExperience);
 	}
+}
+
+void ARoleBase::SmoothRotateToLocation(const FVector& TargetLocation)
+{
+	// Update target location and parameters (this will override any previous rotation)
+	TargetRotationLocation = TargetLocation;
+	bIsRotatingToTarget = true;
 }

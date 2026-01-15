@@ -17,6 +17,7 @@
 #include "Components/SphereComponent.h"
 #include "CollisionQueryParams.h"
 #include "Engine/OverlapResult.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "UObject/UObjectGlobals.h"
 #include "Skill/SkillManager.h"
 #include "Skill/SkillData.h"
@@ -140,11 +141,24 @@ void AlivePlayerController::OnTouchReleased()
 
 void AlivePlayerController::UpdateCachedDestination()
 {
+	// 配置碰撞查询参数，忽略当前控制的 Pawn
+	FCollisionQueryParams CollisionParams;
+	CollisionParams.AddIgnoredActor(GetPawn());
+
+	// 获取鼠标位置和方向
+	FVector MouseLocation, MouseDirection;
+	DeprojectMousePositionToWorld(MouseLocation, MouseDirection);
+
+	// 设置射线起点和终点
+	FVector TraceStart = MouseLocation;
+	FVector TraceEnd = MouseLocation + MouseDirection * 10000.0f;
+
 	// We look for the location in the world where the player has pressed the input
 	FHitResult Hit;
-	bool bHitSuccessful = GetHitResultUnderCursor(ECollisionChannel::ECC_Visibility, true, Hit);
+	bool bHitSuccessful = GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECollisionChannel::ECC_Visibility, CollisionParams);
+	
 	FHitResult HitTarget;
-	bool bHitSuccessfulTarget = GetHitResultUnderCursor(ECollisionChannel::ECC_Pawn, false, HitTarget);
+	bool bHitSuccessfulTarget = GetWorld()->LineTraceSingleByChannel(HitTarget, TraceStart, TraceEnd, ECollisionChannel::ECC_Pawn, CollisionParams);
 
 	// If we hit a surface, cache the location
 	if (bHitSuccessful)
@@ -155,7 +169,8 @@ void AlivePlayerController::UpdateCachedDestination()
 		if (Hit.GetActor())
 		{
 			ARoleBase* HitRole = Cast<ARoleBase>(Hit.GetActor());
-			if (HitRole && IsValid(HitRole))
+			// 排除当前控制的 Pawn
+			if (HitRole && IsValid(HitRole) && HitRole != GetPawn())
 			{
 				// 更新追踪目标
 				TrackedTarget = HitRole;
@@ -168,7 +183,8 @@ void AlivePlayerController::UpdateCachedDestination()
     {
         AActor* Actor = HitTarget.HitObjectHandle.GetCachedActor();
 		ARoleBase* HitRole = Cast<ARoleBase>(Actor);
-		if (HitRole && IsValid(HitRole))
+		// 排除当前控制的 Pawn
+		if (HitRole && IsValid(HitRole) && HitRole != GetPawn())
         {
             // 更新追踪目标
             TrackedTarget = HitRole;
@@ -573,6 +589,9 @@ void AlivePlayerController::CastTrackingSuccessSkill()
 		ARoleBase* RoleBase = Cast<ARoleBase>(ControlledPawn);
 		if (RoleBase && RoleBase->GetSkillComponent() && TrackedTarget && IsValid(TrackedTarget))
 		{
+			// 平滑旋转朝向追踪目标
+			RoleBase->SmoothRotateToLocation(TrackedTarget->GetActorLocation());
+			
 			// 释放追踪成功技能
 			bool bCastSuccess = RoleBase->GetSkillComponent()->CastSkillByName(TrackingSuccessToCast, TrackedTarget, TrackedTarget->GetActorLocation());
 			if (bCastSuccess)

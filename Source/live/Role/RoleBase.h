@@ -194,4 +194,25 @@ public:
 	/** Handle level up logic */
 	UFUNCTION(BlueprintCallable, Category = "Character")
 	virtual void HandleLevelUp();
+	
+	/** Smoothly rotate character to face a target location */
+	UFUNCTION(BlueprintCallable, Category = "Character")
+	void SmoothRotateToLocation(const FVector& TargetLocation);
+
+protected:
+	/** Target location for smooth rotation */
+	UPROPERTY()
+	FVector TargetRotationLocation;
+
+	/** Whether currently rotating to target */
+	UPROPERTY()
+	bool bIsRotatingToTarget = false;
+
+	/** Speed of rotation in degrees per second */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite,Category="MyRotaion")
+	float CurrentRotationSpeed = 180.0f;
+
+	/** Angle tolerance in degrees to stop rotation */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite,Category="MyRotaion")
+	float RotationToleranceAngle = 5.0f;
 };
