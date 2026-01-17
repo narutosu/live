@@ -87,7 +87,7 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "AI")
 	TObjectPtr<class AItemActor> ItemToPickUp;
 	
-	FName TrackingSuccessToCast = FName("Normal_Attack");
+	FName TrackingSuccessToCast = FName("");
 
 	/** 追踪成功的距离阈值 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
@@ -106,9 +106,6 @@ protected:
 	/** 是否正在追踪 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI")
 	bool bIsTracking = false;
-
-	/** 是否是自动攻击触发的追踪 */
-	bool bIsAutoAttackTracking = false;
 
 	/** 追踪成功时的委托 */
 	UPROPERTY(BlueprintAssignable, Category = "AI")
@@ -141,8 +138,6 @@ protected:
 	void OnSetDestinationRightClickTriggered();
 	/** Auto Attack input handler */
 	void OnAutoAttackTriggered();
-	/** 追踪并攻击目标 */
-	void TrackedAndAttackTarget(class ARoleBase* Target,FName ParamTrackingSuccessToCast = FName("Normal_Attack"));
 	/** 追踪更新回调 */
 	void UpdateTracking();
 
@@ -183,7 +178,7 @@ public:
 
 	/** 新增：切换到追踪状态 */
 	UFUNCTION(BlueprintCallable, Category = "AI")
-	void SetTrackingState(class ARoleBase* Target, float SuccessDistance = 100.0f);
+	void SetTrackingState(class ARoleBase* Target, float SuccessDistance = 100.0f,FName ParamTrackingSuccessToCast = FName(""));
 
 	/** 新增：切换到眩晕状态 */
 	UFUNCTION(BlueprintCallable, Category = "AI")

@@ -83,7 +83,6 @@ void AlivePlayerController::OnSetDestinationTriggered()
 // 新增：Auto Attack 输入处理
 void AlivePlayerController::OnAutoAttackTriggered()
 {
-	TrackingSuccessToCast = FName("Normal_Attack");
 	StopTracking();
 	StopTrackingSuccessSkill();
 	// 如果处于眩晕状态，不允许操作
@@ -112,7 +111,6 @@ void AlivePlayerController::OnAutoAttackTriggered()
 	if (bHitSuccessful && HitActor)
 	{
 		ARoleBase* RoleActor = Cast<ARoleBase>(HitActor);
-		CachedDestination = Hit.Location;
 		// 检查是否点击到了 RoleBase（敌人或友方角色）
 		if (RoleActor && IsValid(RoleActor))
 		{
@@ -122,7 +120,7 @@ void AlivePlayerController::OnAutoAttackTriggered()
 		}
 		else
         {
-			AEnemyBase* EnemyActor = FindNearestEnemyInRange(350, CachedDestination);
+			AEnemyBase* EnemyActor = FindNearestEnemyInRange(350, Hit.Location);
 			if (EnemyActor && IsValid(EnemyActor))
             {
                 TrackedTarget = EnemyActor;
@@ -130,58 +128,18 @@ void AlivePlayerController::OnAutoAttackTriggered()
             }
         }
 	}
+	
 	// 检查是否存在追踪目标
 	if (TrackedTarget && IsValid(TrackedTarget))
 	{
-		TrackedAndAttackTarget(TrackedTarget, TrackingSuccessToCast);
+		SetTrackingState(TrackedTarget,100, FName("Normal_Attack"));
 	}
 	else
 	{
 		// 没有追踪目标，移动到鼠标位置
-		SetMovingState(CachedDestination);
+		SetMovingState(Hit.Location);
 		UE_LOG(Loglive, Log, TEXT("OnAutoAttackTriggered: No tracked target, moving to cursor position"));
 	}
-}
-
-void AlivePlayerController::TrackedAndAttackTarget(class ARoleBase* Target, FName ParamTrackingSuccessToCast)
-{
-	// 如果目标无效，直接返回
-	if (!Target)
-	{
-		UE_LOG(Loglive, Warning, TEXT("TrackedAndAttackTarget: Target is null"));
-		return;
-	}
-	TrackedTarget = Target;
-	// 如果处于眩晕状态，不允许操作
-	if (CurrentState == ECharacterBehaviorState::Stunned)
-	{
-		UE_LOG(Loglive, Warning, TEXT("TrackedAndAttackTarget: Cannot act while stunned"));
-		return;
-	}
-
-	// 停止当前的追踪和技能
-	StopTracking();
-	StopTrackingSuccessSkill();
-
-	// 检查目标是否存活
-	if (Target->GetHealth() <= 0.0f)
-	{
-		UE_LOG(Loglive, Warning, TEXT("TrackedAndAttackTarget: Target is dead"));
-		return;
-	}
-
-	// 设置追踪成功时要释放的技能
-	this->TrackingSuccessToCast = ParamTrackingSuccessToCast;
-
-	// 设置自动攻击追踪标志
-	bIsAutoAttackTracking = true;
-
-	// 开始追踪目标
-	SetTrackingState(Target, TrackingSuccessDistance);
-
-	UE_LOG(Loglive, Log, TEXT("TrackedAndAttackTarget: Started tracking %s with skill %s"), 
-		*Target->GetName(), 
-		*ParamTrackingSuccessToCast.ToString());
 }
 
 
@@ -225,7 +183,7 @@ void AlivePlayerController::OnSetDestinationRightClickTriggered()
 		// 检查是否点击到了 RoleBase（敌人或友方角色）
 		if (RoleActor && IsValid(RoleActor))
 		{
-			TrackedAndAttackTarget(RoleActor, "Normal_Attack");
+			SetTrackingState(RoleActor, TrackingSuccessDistance, FName("Normal_Attack"));
 			UE_LOG(Loglive, Log, TEXT("UpdateCachedDestination: Updated TrackedTarget to %s"), *RoleActor->GetName());
 			return;
 		}
@@ -234,7 +192,6 @@ void AlivePlayerController::OnSetDestinationRightClickTriggered()
 			// 点击的是 ItemActor，移动到附近并拾取
 			// 存储要拾取的物品
 			ItemToPickUp = ItemActor;
-			
 			// 移动到 ItemActor 附近
 			SetMovingState(Hit.Location);
 			
@@ -243,8 +200,8 @@ void AlivePlayerController::OnSetDestinationRightClickTriggered()
 		}
 		else
 		{
-			CachedDestination = Hit.Location;
-			SetMovingState(CachedDestination);
+			
+			SetMovingState(Hit.Location);
 			// 生成点击特效
 			UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, FXCursor, CachedDestination, FRotator::ZeroRotator, FVector(0.5f, 0.5f, 0.5f), true, true, ENCPoolMethod::None, true);
 	
@@ -442,13 +399,10 @@ void AlivePlayerController::UpdateTracking()
 			OnTrackingSuccessDelegate.Broadcast(TrackedTarget);
 		}
 		
-		// 如果是自动攻击触发的追踪，触发普攻
-		if (bIsAutoAttackTracking)
+		// 如果是自动攻击触发的追踪
+		if (!TrackingSuccessToCast.IsNone())
 		{
 			CastTrackingSuccessSkill();
-			
-			// 重置标志
-			bIsAutoAttackTracking = false;
 		}
 		
 		return;
@@ -463,34 +417,14 @@ void AlivePlayerController::SetCharacterState(ECharacterBehaviorState NewState)
 {
 	// 保存旧状态
 	ECharacterBehaviorState OldState = CurrentState;
-
-	// 根据旧状态进行清理
-	switch (OldState)
-	{
-	case ECharacterBehaviorState::Tracking:
-		// 从追踪状态切换出去，停止追踪
-		if (NewState != ECharacterBehaviorState::Tracking)
-		{
-			StopTracking();
-		}
-		break;
-	case ECharacterBehaviorState::Stunned:
-		// 从眩晕状态切换出去，清除眩晕定时器
-		if (NewState != ECharacterBehaviorState::Stunned)
-		{
-			UWorld* World = GetWorld();
-			if (World)
-			{
-				World->GetTimerManager().ClearTimer(StunTimerHandle);
-			}
-		}
-		break;
-	default:
-		break;
-	}
+	
+	//清理旧状态
+	StopTracking();
+	StopTrackingSuccessSkill();
 
 	// 设置新状态
 	CurrentState = NewState;
+	OnStateChangedDelegate.Broadcast(NewState, OldState);
 
 	// 根据新状态进行初始化
 	switch (NewState)
@@ -505,23 +439,6 @@ void AlivePlayerController::SetCharacterState(ECharacterBehaviorState NewState)
 		}
 		break;
 	case ECharacterBehaviorState::Moving:
-		// 移动状态，在 SetMovingState 中处理
-		// 如果有要拾取的物品，启动拾取定时器
-		if (ItemToPickUp && IsValid(ItemToPickUp))
-		{
-			UWorld* World = GetWorld();
-			if (World)
-			{
-				World->GetTimerManager().ClearTimer(TrackingTimerHandle);
-				World->GetTimerManager().SetTimer(
-					TrackingTimerHandle,
-					this,
-					&AlivePlayerController::UpdateItemPickup,
-					TrackingUpdateInterval,
-					true
-				);
-			}
-		}
 		break;
 	case ECharacterBehaviorState::Tracking:
 		// 追踪状态，在 SetTrackingState 中处理
@@ -532,10 +449,6 @@ void AlivePlayerController::SetCharacterState(ECharacterBehaviorState NewState)
 		break;
 	default:
 		break;
-	}
-	if (CurrentState != NewState)
-	{
-		OnStateChangedDelegate.Broadcast(NewState, OldState);
 	}
 }
 
@@ -548,6 +461,7 @@ void AlivePlayerController::SetIdleState()
 // 新增：切换到移动状态
 void AlivePlayerController::SetMovingState(const FVector& Destination)
 {
+	CachedDestination = Destination;
 	// 如果处于眩晕状态，不允许移动
 	if (CurrentState == ECharacterBehaviorState::Stunned)
 	{
@@ -555,14 +469,24 @@ void AlivePlayerController::SetMovingState(const FVector& Destination)
 		return;
 	}
 
-	// 停止追踪
-	if (CurrentState == ECharacterBehaviorState::Tracking)
-	{
-		StopTracking();
-	}
-
 	// 切换到移动状态
 	SetCharacterState(ECharacterBehaviorState::Moving);
+	
+	if (ItemToPickUp && IsValid(ItemToPickUp))
+	{
+		UWorld* World = GetWorld();
+		if (World)
+		{
+			World->GetTimerManager().ClearTimer(TrackingTimerHandle);
+			World->GetTimerManager().SetTimer(
+				TrackingTimerHandle,
+				this,
+				&AlivePlayerController::UpdateItemPickup,
+				TrackingUpdateInterval,
+				true
+			);
+		}
+	}
 
 	// 移动到目标位置
 	UAIBlueprintHelperLibrary::SimpleMoveToLocation(this, Destination);
@@ -627,8 +551,18 @@ void AlivePlayerController::UpdateItemPickup()
 }
 
 // 新增：切换到追踪状态
-void AlivePlayerController::SetTrackingState(ARoleBase* Target, float SuccessDistance)
+void AlivePlayerController::SetTrackingState(ARoleBase* Target, float SuccessDistance,FName ParamTrackingSuccessToCast)
 {
+	// 如果目标无效，直接返回
+	if (!Target)
+	{
+		UE_LOG(Loglive, Warning, TEXT("TrackedAndAttackTarget: Target is null"));
+		return;
+	}
+
+	// 设置追踪成功时要释放的技能
+	this->TrackingSuccessToCast = ParamTrackingSuccessToCast;
+	
 	// 如果处于眩晕状态，不允许追踪
 	if (CurrentState == ECharacterBehaviorState::Stunned)
 	{
@@ -638,7 +572,6 @@ void AlivePlayerController::SetTrackingState(ARoleBase* Target, float SuccessDis
 
 	// 切换到追踪状态
 	SetCharacterState(ECharacterBehaviorState::Tracking);
-
 	// 开始追踪
 	StartTracking(Target, SuccessDistance);
 }
@@ -648,24 +581,6 @@ void AlivePlayerController::SetStunnedState(float Duration)
 {
 	// 切换到眩晕状态
 	SetCharacterState(ECharacterBehaviorState::Stunned);
-
-	// 启动眩晕定时器
-	UWorld* World = GetWorld();
-	if (World && Duration > 0.0f)
-	{
-		World->GetTimerManager().SetTimer(
-			StunTimerHandle,
-			[this]()
-			{
-				// 眩晕结束后切换到站立状态
-				SetIdleState();
-			},
-			Duration,
-			false
-		);
-
-		UE_LOG(Loglive, Log, TEXT("SetStunnedState: Stunned for %f seconds"), Duration);
-	}
 }
 
 
