@@ -295,6 +295,8 @@ void ARoleBase::RemoveStartupGameplayAbilities()
 void ARoleBase::Death()
 {
 	SkillComponent->CastSkillByName(FName("DropExp"));
+	UItemManager::Get()->DropRandomItem(this, GetActorLocation());
+	
 	// Broadcast death delegate
 	OnDeathDelegate.Broadcast();
 	

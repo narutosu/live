@@ -61,7 +61,7 @@ protected:
 
 	/** Jump Input Action */
 	UPROPERTY(EditAnywhere, Category="Input")
-	TObjectPtr<UInputAction> SetDestinationTouchAction;
+	TObjectPtr<UInputAction> SetDestinationRightClickAction;
 	
 	/** Jump Input Action */
 	UPROPERTY(EditAnywhere, Category="Input")
@@ -82,6 +82,10 @@ protected:
 	/** 追踪目标 */
 	UPROPERTY(VisibleAnywhere, Category = "AI")
 	TObjectPtr<class ARoleBase> TrackedTarget;
+	
+	/** 要拾取的物品目标 */
+	UPROPERTY(VisibleAnywhere, Category = "AI")
+	TObjectPtr<class AItemActor> ItemToPickUp;
 	
 	FName TrackingSuccessToCast = FName("Normal_Attack");
 
@@ -132,20 +136,18 @@ protected:
 	virtual void SetupInputComponent() override;
 	
 	/** Input handlers */
-	void OnInputStarted();
 	void OnSetDestinationTriggered();
-	void OnSetDestinationReleased();
-	void OnTouchTriggered();
-	void OnTouchReleased();
-
+	/** Right click input handler */
+	void OnSetDestinationRightClickTriggered();
 	/** Auto Attack input handler */
 	void OnAutoAttackTriggered();
-
-	/** Helper function to get the move destination */
-	void UpdateCachedDestination();
-
+	/** 追踪并攻击目标 */
+	void TrackedAndAttackTarget(class ARoleBase* Target,FName ParamTrackingSuccessToCast = FName("Normal_Attack"));
 	/** 追踪更新回调 */
 	void UpdateTracking();
+
+	/** 拾取物品更新回调 */
+	void UpdateItemPickup();
 
 	/** 设置角色行为状态 */
 	void SetCharacterState(ECharacterBehaviorState NewState);

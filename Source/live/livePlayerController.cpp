@@ -22,6 +22,8 @@
 #include "Skill/SkillManager.h"
 #include "Skill/SkillData.h"
 #include "GAS/Common/RPGGameplayAbility.h"
+#include "Item/ItemActor.h"
+#include "Kismet/KismetSystemLibrary.h"
 
 AlivePlayerController::AlivePlayerController()
 {
@@ -59,19 +61,12 @@ void AlivePlayerController::SetupInputComponent()
 		if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(InputComponent))
 		{
 			// Setup mouse input events
-			EnhancedInputComponent->BindAction(SetDestinationClickAction, ETriggerEvent::Started, this, &AlivePlayerController::OnInputStarted);
-			EnhancedInputComponent->BindAction(SetDestinationClickAction, ETriggerEvent::Triggered, this, &AlivePlayerController::OnSetDestinationTriggered);
-			EnhancedInputComponent->BindAction(SetDestinationClickAction, ETriggerEvent::Completed, this, &AlivePlayerController::OnSetDestinationReleased);
-			EnhancedInputComponent->BindAction(SetDestinationClickAction, ETriggerEvent::Canceled, this, &AlivePlayerController::OnSetDestinationReleased);
-
-			// Setup touch input events
-			EnhancedInputComponent->BindAction(SetDestinationTouchAction, ETriggerEvent::Started, this, &AlivePlayerController::OnInputStarted);
-			EnhancedInputComponent->BindAction(SetDestinationTouchAction, ETriggerEvent::Triggered, this, &AlivePlayerController::OnTouchTriggered);
-			EnhancedInputComponent->BindAction(SetDestinationTouchAction, ETriggerEvent::Completed, this, &AlivePlayerController::OnTouchReleased);
-			EnhancedInputComponent->BindAction(SetDestinationTouchAction, ETriggerEvent::Canceled, this, &AlivePlayerController::OnTouchReleased);
-
+			EnhancedInputComponent->BindAction(SetDestinationClickAction, ETriggerEvent::Started, this, &AlivePlayerController::OnSetDestinationTriggered);
+			// Setup right click input event
+			EnhancedInputComponent->BindAction(SetDestinationRightClickAction, ETriggerEvent::Started, this, &AlivePlayerController::OnSetDestinationRightClickTriggered);
 			// Setup auto attack input event
-			EnhancedInputComponent->BindAction(AutoAttackAction, ETriggerEvent::Triggered, this, &AlivePlayerController::OnAutoAttackTriggered);
+			EnhancedInputComponent->BindAction(AutoAttackAction, ETriggerEvent::Started, this, &AlivePlayerController::OnAutoAttackTriggered);
+			
 		}
 		else
 		{
@@ -80,67 +75,24 @@ void AlivePlayerController::SetupInputComponent()
 	}
 }
 
-void AlivePlayerController::OnInputStarted()
-{
-	StopTracking();
-	StopTrackingSuccessSkill();
-	StopMovement();
-
-	// Update the move destination to wherever the cursor is pointing at
-	UpdateCachedDestination();
-}
-
 void AlivePlayerController::OnSetDestinationTriggered()
 {
+	UE_LOG(Loglive, Log, TEXT("========================================OnSetDestinationTriggered"));
+}
+
+// 新增：Auto Attack 输入处理
+void AlivePlayerController::OnAutoAttackTriggered()
+{
+	TrackingSuccessToCast = FName("Normal_Attack");
 	StopTracking();
 	StopTrackingSuccessSkill();
-	
-	// We flag that the input is being pressed
-	FollowTime += GetWorld()->GetDeltaSeconds();
-	
-	// Update the move destination to wherever the cursor is pointing at
-	UpdateCachedDestination();
-	
-	// Move towards mouse pointer or touch
-	APawn* ControlledPawn = GetPawn();
-	if (ControlledPawn != nullptr)
+	// 如果处于眩晕状态，不允许操作
+	if (CurrentState == ECharacterBehaviorState::Stunned)
 	{
-		FVector WorldDirection = (CachedDestination - ControlledPawn->GetActorLocation()).GetSafeNormal();
-		ControlledPawn->AddMovementInput(WorldDirection, 1.0, false);
+		UE_LOG(Loglive, Warning, TEXT("OnAutoAttackTriggered: Cannot act while stunned"));
+		return;
 	}
-}
-
-void AlivePlayerController::OnSetDestinationReleased()
-{
-	// If it was a short press
-	if (FollowTime <= ShortPressThreshold)
-	{
-		StopTracking();
-		StopTrackingSuccessSkill();
-		
-		// We move there and spawn some particles
-		UAIBlueprintHelperLibrary::SimpleMoveToLocation(this, CachedDestination);
-		UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, FXCursor, CachedDestination, FRotator::ZeroRotator, FVector(1.f, 1.f, 1.f), true, true, ENCPoolMethod::None, true);
-	}
-
-	FollowTime = 0.f;
-}
-
-// Triggered every frame when the input is held down
-void AlivePlayerController::OnTouchTriggered()
-{
-	bIsTouch = true;
-	OnSetDestinationTriggered();
-}
-
-void AlivePlayerController::OnTouchReleased()
-{
-	bIsTouch = false;
-	OnSetDestinationReleased();
-}
-
-void AlivePlayerController::UpdateCachedDestination()
-{
+	
 	// 配置碰撞查询参数，忽略当前控制的 Pawn
 	FCollisionQueryParams CollisionParams;
 	CollisionParams.AddIgnoredActor(GetPawn());
@@ -153,44 +105,153 @@ void AlivePlayerController::UpdateCachedDestination()
 	FVector TraceStart = MouseLocation;
 	FVector TraceEnd = MouseLocation + MouseDirection * 10000.0f;
 
-	// We look for the location in the world where the player has pressed the input
+	// 检测射线是否击中 ItemActor
 	FHitResult Hit;
-	bool bHitSuccessful = GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECollisionChannel::ECC_Visibility, CollisionParams);
-	
-	FHitResult HitTarget;
-	bool bHitSuccessfulTarget = GetWorld()->LineTraceSingleByChannel(HitTarget, TraceStart, TraceEnd, ECollisionChannel::ECC_Pawn, CollisionParams);
-
-	// If we hit a surface, cache the location
-	if (bHitSuccessful)
+	bool bHitSuccessful = GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECollisionChannel::ECC_GameTraceChannel4, CollisionParams);
+	AActor* HitActor = Hit.GetActor();
+	if (bHitSuccessful && HitActor)
 	{
+		ARoleBase* RoleActor = Cast<ARoleBase>(HitActor);
 		CachedDestination = Hit.Location;
-		
 		// 检查是否点击到了 RoleBase（敌人或友方角色）
-		if (Hit.GetActor())
+		if (RoleActor && IsValid(RoleActor))
 		{
-			ARoleBase* HitRole = Cast<ARoleBase>(Hit.GetActor());
-			// 排除当前控制的 Pawn
-			if (HitRole && IsValid(HitRole) && HitRole != GetPawn())
-			{
-				// 更新追踪目标
-				TrackedTarget = HitRole;
-				UE_LOG(Loglive, Log, TEXT("UpdateCachedDestination: Updated TrackedTarget to %s"), *HitRole->GetName());
-			}
+			// 更新追踪目标
+			TrackedTarget = RoleActor;
+			UE_LOG(Loglive, Log, TEXT("OnAutoAttackTriggered:  TrackedTarget to %s"), *RoleActor->GetName());
+		}
+		else
+        {
+			AEnemyBase* EnemyActor = FindNearestEnemyInRange(350, CachedDestination);
+			if (EnemyActor && IsValid(EnemyActor))
+            {
+                TrackedTarget = EnemyActor;
+				UE_LOG(Loglive, Log, TEXT("OnAutoAttackTriggered:Auto Find Nearest Enemy TrackedTarget to %s"), *EnemyActor->GetName());
+            }
+        }
+	}
+	// 检查是否存在追踪目标
+	if (TrackedTarget && IsValid(TrackedTarget))
+	{
+		TrackedAndAttackTarget(TrackedTarget, TrackingSuccessToCast);
+	}
+	else
+	{
+		// 没有追踪目标，移动到鼠标位置
+		SetMovingState(CachedDestination);
+		UE_LOG(Loglive, Log, TEXT("OnAutoAttackTriggered: No tracked target, moving to cursor position"));
+	}
+}
+
+void AlivePlayerController::TrackedAndAttackTarget(class ARoleBase* Target, FName ParamTrackingSuccessToCast)
+{
+	// 如果目标无效，直接返回
+	if (!Target)
+	{
+		UE_LOG(Loglive, Warning, TEXT("TrackedAndAttackTarget: Target is null"));
+		return;
+	}
+	TrackedTarget = Target;
+	// 如果处于眩晕状态，不允许操作
+	if (CurrentState == ECharacterBehaviorState::Stunned)
+	{
+		UE_LOG(Loglive, Warning, TEXT("TrackedAndAttackTarget: Cannot act while stunned"));
+		return;
+	}
+
+	// 停止当前的追踪和技能
+	StopTracking();
+	StopTrackingSuccessSkill();
+
+	// 检查目标是否存活
+	if (Target->GetHealth() <= 0.0f)
+	{
+		UE_LOG(Loglive, Warning, TEXT("TrackedAndAttackTarget: Target is dead"));
+		return;
+	}
+
+	// 设置追踪成功时要释放的技能
+	this->TrackingSuccessToCast = ParamTrackingSuccessToCast;
+
+	// 设置自动攻击追踪标志
+	bIsAutoAttackTracking = true;
+
+	// 开始追踪目标
+	SetTrackingState(Target, TrackingSuccessDistance);
+
+	UE_LOG(Loglive, Log, TEXT("TrackedAndAttackTarget: Started tracking %s with skill %s"), 
+		*Target->GetName(), 
+		*ParamTrackingSuccessToCast.ToString());
+}
+
+
+// 新增：右键点击输入处理
+void AlivePlayerController::OnSetDestinationRightClickTriggered()
+{
+	UE_LOG(Loglive, Log, TEXT("========================================OnSetDestinationRightClickTriggered"));
+	// 如果处于眩晕状态，不允许操作
+	if (CurrentState == ECharacterBehaviorState::Stunned)
+	{
+		UE_LOG(Loglive, Warning, TEXT("OnSetDestinationRightClickTriggered: Cannot act while stunned"));
+		return;
+	}
+
+	// 停止当前的追踪和技能
+	StopTracking();
+	StopTrackingSuccessSkill();
+
+	// 配置碰撞查询参数，忽略当前控制的 Pawn
+	FCollisionQueryParams CollisionParams;
+	CollisionParams.AddIgnoredActor(GetPawn());
+
+	// 获取鼠标位置和方向
+	FVector MouseLocation, MouseDirection;
+	DeprojectMousePositionToWorld(MouseLocation, MouseDirection);
+
+	// 设置射线起点和终点
+	FVector TraceStart = MouseLocation;
+	FVector TraceEnd = MouseLocation + MouseDirection * 10000.0f;
+
+	// 检测射线是否击中 ItemActor
+	FHitResult Hit;
+	bool bHitSuccessful = GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECollisionChannel::ECC_GameTraceChannel3, CollisionParams);
+	AActor* HitActor = Hit.GetActor();
+	if (bHitSuccessful && HitActor)
+	{
+		// 检查是否点击到了 ItemActor
+		AItemActor* ItemActor = Cast<AItemActor>(HitActor);
+		ARoleBase* RoleActor = Cast<ARoleBase>(HitActor);
+		CachedDestination = Hit.Location;
+		// 检查是否点击到了 RoleBase（敌人或友方角色）
+		if (RoleActor && IsValid(RoleActor))
+		{
+			TrackedAndAttackTarget(RoleActor, "Normal_Attack");
+			UE_LOG(Loglive, Log, TEXT("UpdateCachedDestination: Updated TrackedTarget to %s"), *RoleActor->GetName());
+			return;
+		}
+		else if (ItemActor && IsValid(ItemActor))
+		{
+			// 点击的是 ItemActor，移动到附近并拾取
+			// 存储要拾取的物品
+			ItemToPickUp = ItemActor;
+			
+			// 移动到 ItemActor 附近
+			SetMovingState(Hit.Location);
+			
+			UE_LOG(Loglive, Log, TEXT("OnSetDestinationRightClickTriggered: Moving to pick up item %s"), *ItemActor->GetName());
+			return;
+		}
+		else
+		{
+			CachedDestination = Hit.Location;
+			SetMovingState(CachedDestination);
+			// 生成点击特效
+			UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, FXCursor, CachedDestination, FRotator::ZeroRotator, FVector(0.5f, 0.5f, 0.5f), true, true, ENCPoolMethod::None, true);
+	
 		}
 	}
-	
-	if (bHitSuccessfulTarget)
-    {
-        AActor* Actor = HitTarget.HitObjectHandle.GetCachedActor();
-		ARoleBase* HitRole = Cast<ARoleBase>(Actor);
-		// 排除当前控制的 Pawn
-		if (HitRole && IsValid(HitRole) && HitRole != GetPawn())
-        {
-            // 更新追踪目标
-            TrackedTarget = HitRole;
-            UE_LOG(Loglive, Log, TEXT("UpdateCachedDestination: Updated TrackedTarget to %s"), *HitRole->GetName());
-        }
-    }
+
+	UE_LOG(Loglive, Log, TEXT("OnSetDestinationRightClickTriggered: Moving to destination %s"), *CachedDestination.ToString());
 }
 
 // 新增：寻找范围内最近的敌人
@@ -400,12 +461,6 @@ void AlivePlayerController::UpdateTracking()
 // 新增：设置角色行为状态
 void AlivePlayerController::SetCharacterState(ECharacterBehaviorState NewState)
 {
-	// 如果状态没有变化，直接返回
-	if (CurrentState == NewState)
-	{
-		return;
-	}
-
 	// 保存旧状态
 	ECharacterBehaviorState OldState = CurrentState;
 
@@ -443,9 +498,30 @@ void AlivePlayerController::SetCharacterState(ECharacterBehaviorState NewState)
 	case ECharacterBehaviorState::Idle:
 		// 站立状态，停止移动
 		StopMovement();
+		// 清除拾取物品定时器
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().ClearTimer(TrackingTimerHandle);
+		}
 		break;
 	case ECharacterBehaviorState::Moving:
 		// 移动状态，在 SetMovingState 中处理
+		// 如果有要拾取的物品，启动拾取定时器
+		if (ItemToPickUp && IsValid(ItemToPickUp))
+		{
+			UWorld* World = GetWorld();
+			if (World)
+			{
+				World->GetTimerManager().ClearTimer(TrackingTimerHandle);
+				World->GetTimerManager().SetTimer(
+					TrackingTimerHandle,
+					this,
+					&AlivePlayerController::UpdateItemPickup,
+					TrackingUpdateInterval,
+					true
+				);
+			}
+		}
 		break;
 	case ECharacterBehaviorState::Tracking:
 		// 追踪状态，在 SetTrackingState 中处理
@@ -457,14 +533,10 @@ void AlivePlayerController::SetCharacterState(ECharacterBehaviorState NewState)
 	default:
 		break;
 	}
-
-	// 触发状态切换委托
-	if (OnStateChangedDelegate.IsBound())
+	if (CurrentState != NewState)
 	{
 		OnStateChangedDelegate.Broadcast(NewState, OldState);
 	}
-
-	UE_LOG(Loglive, Log, TEXT("SetCharacterState: Changed from %d to %d"), (int32)OldState, (int32)NewState);
 }
 
 // 新增：切换到站立状态
@@ -494,6 +566,64 @@ void AlivePlayerController::SetMovingState(const FVector& Destination)
 
 	// 移动到目标位置
 	UAIBlueprintHelperLibrary::SimpleMoveToLocation(this, Destination);
+}
+
+// 新增：拾取物品更新回调
+void AlivePlayerController::UpdateItemPickup()
+{
+	// 检查物品是否仍然有效
+	if (!ItemToPickUp || !IsValid(ItemToPickUp))
+	{
+		// 物品已无效，清除定时器和引用
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().ClearTimer(TrackingTimerHandle);
+		}
+		ItemToPickUp = nullptr;
+		return;
+	}
+
+	// 获取控制的角色
+	APawn* ControlledPawn = GetPawn();
+	if (!ControlledPawn)
+	{
+		return;
+	}
+
+	// 计算到物品的距离
+	float Distance = FVector::Dist(ControlledPawn->GetActorLocation(), ItemToPickUp->GetActorLocation());
+
+	// 如果已经到达拾取距离，尝试拾取
+	if (Distance <= 300.0f)
+	{
+		// 停止移动
+		StopMovement();
+		
+		// 尝试拾取物品
+		ARoleBase* RoleBase = Cast<ARoleBase>(ControlledPawn);
+		if (RoleBase)
+		{
+			bool bPickedUp = ItemToPickUp->PickUp(RoleBase);
+			if (bPickedUp)
+			{
+				UE_LOG(Loglive, Log, TEXT("UpdateItemPickup: Successfully picked up item %s"), *ItemToPickUp->GetName());
+			}
+			else
+			{
+				UE_LOG(Loglive, Warning, TEXT("UpdateItemPickup: Failed to pick up item %s"), *ItemToPickUp->GetName());
+			}
+		}
+		
+		// 清除定时器和引用
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().ClearTimer(TrackingTimerHandle);
+		}
+		ItemToPickUp = nullptr;
+		
+		// 切换到站立状态
+		SetIdleState();
+	}
 }
 
 // 新增：切换到追踪状态
@@ -538,47 +668,6 @@ void AlivePlayerController::SetStunnedState(float Duration)
 	}
 }
 
-// 新增：Auto Attack 输入处理
-void AlivePlayerController::OnAutoAttackTriggered()
-{
-	TrackingSuccessToCast = FName("Normal_Attack");
-	StopTracking();
-	StopTrackingSuccessSkill();
-	// 如果处于眩晕状态，不允许操作
-	if (CurrentState == ECharacterBehaviorState::Stunned)
-	{
-		UE_LOG(Loglive, Warning, TEXT("OnAutoAttackTriggered: Cannot act while stunned"));
-		return;
-	}
-
-	// 更新鼠标位置
-	UpdateCachedDestination();
-
-	// 检查是否存在追踪目标
-	if (TrackedTarget && IsValid(TrackedTarget))
-	{
-		// 如果目标存活，追击目标
-		if (TrackedTarget->GetHealth() > 0.0f)
-		{
-			// 设置自动攻击追踪标志
-			bIsAutoAttackTracking = true;
-			SetTrackingState(TrackedTarget, TrackingSuccessDistance);
-			UE_LOG(Loglive, Log, TEXT("OnAutoAttackTriggered: Tracking target %s for auto attack"), *TrackedTarget->GetName());
-		}
-		else
-		{
-			// 目标已死亡，移动到鼠标位置
-			SetMovingState(CachedDestination);
-			UE_LOG(Loglive, Log, TEXT("OnAutoAttackTriggered: Target is dead, moving to cursor position"));
-		}
-	}
-	else
-	{
-		// 没有追踪目标，移动到鼠标位置
-		SetMovingState(CachedDestination);
-		UE_LOG(Loglive, Log, TEXT("OnAutoAttackTriggered: No tracked target, moving to cursor position"));
-	}
-}
 
 // 新增：触发追踪成功技能
 void AlivePlayerController::CastTrackingSuccessSkill()

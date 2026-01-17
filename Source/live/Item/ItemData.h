@@ -16,6 +16,28 @@ enum class EItemType : uint8
 };
 
 UENUM(BlueprintType)
+enum class EItemPickupMode : uint8
+{
+	AutoPickup UMETA(DisplayName = "自动拾取"),
+	ManualPickup UMETA(DisplayName = "手动拾取")
+};
+
+UENUM(BlueprintType)
+enum class EItemQuality : uint8
+{
+	Common UMETA(DisplayName = "普通", ToolTip = "1级品质"),
+	Uncommon UMETA(DisplayName = "优秀", ToolTip = "2级品质"),
+	Rare UMETA(DisplayName = "稀有", ToolTip = "3级品质"),
+	Epic UMETA(DisplayName = "史诗", ToolTip = "4级品质"),
+	Legendary UMETA(DisplayName = "传说", ToolTip = "5级品质"),
+	Mythic UMETA(DisplayName = "神话", ToolTip = "6级品质"),
+	Artifact UMETA(DisplayName = "神器", ToolTip = "7级品质"),
+	Transcendent UMETA(DisplayName = "超凡", ToolTip = "8级品质"),
+	Celestial UMETA(DisplayName = "天界", ToolTip = "9级品质"),
+	Divine UMETA(DisplayName = "神圣", ToolTip = "10级品质")
+};
+
+UENUM(BlueprintType)
 enum class EEquipmentSlot : uint8
 {
 	None UMETA(DisplayName = "无"),
@@ -53,6 +75,9 @@ struct FItemData : public FTableRowBase
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
 	FName ItemName;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
+	FName DisplayName;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
 	FText Description;
@@ -82,6 +107,12 @@ struct FItemData : public FTableRowBase
 	UTexture2D* Icon;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
+	TSoftObjectPtr<class UStaticMesh> ItemMesh;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
+	TSoftObjectPtr<class UNiagaraSystem> ShowEffect;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
 	FGameplayTagContainer ItemTags;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
@@ -89,6 +120,12 @@ struct FItemData : public FTableRowBase
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
 	bool bCanBeDropped;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
+	EItemPickupMode PickupMode;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
+	EItemQuality Quality;
 
 	FItemData()
 		: ItemID(0)
@@ -100,6 +137,8 @@ struct FItemData : public FTableRowBase
 		, Icon(nullptr)
 		, bCanBeSold(true)
 		, bCanBeDropped(true)
+		, PickupMode(EItemPickupMode::AutoPickup)
+		, Quality(EItemQuality::Common)
 	{
 	}
 };

@@ -52,6 +52,24 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Item")
 	bool IsValidItemID(int32 ItemID) const;
 
+	/** Drop a specified item at the specified location
+	 * @param WorldContextObject World context object
+	 * @param Location Location to spawn the item
+	 * @param ItemName Name of the item to drop
+	 * @return The spawned ItemActor, or nullptr if failed
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Item", meta = (WorldContext = "WorldContextObject"))
+	class AItemActor* DropItem(UObject* WorldContextObject, const FVector& Location, FName ItemName);
+
+	/** Drop a random item at the specified location
+	 * @param WorldContextObject World context object
+	 * @param Location Location to spawn the item
+	 * @param ItemType Optional item type filter (if Consumable, drops from all items)
+	 * @return The spawned ItemActor, or nullptr if failed
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Item", meta = (WorldContext = "WorldContextObject"))
+	class AItemActor* DropRandomItem(UObject* WorldContextObject, const FVector& Location, EItemType ItemType = EItemType::Consumable);
+
 private:
 	static UItemManager* Instance;
 

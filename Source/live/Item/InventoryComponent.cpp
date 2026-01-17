@@ -4,6 +4,7 @@
 #include "Item/ItemManager.h"
 #include "Role/RoleBase.h"
 #include "AbilitySystemComponent.h"
+#include "GameHelper.h"
 #include "GAS/Common/RPGGameplayAbility.h"
 #include "Net/UnrealNetwork.h"
 
@@ -26,7 +27,7 @@ bool UInventoryComponent::AddItem(FName ItemName, int32 Count)
 	{
 		return false;
 	}
-
+	
 	FItemData ItemData = UItemManager::Get()->GetItemData(ItemName);
 	if (ItemData.ItemID == 0)
 	{
@@ -34,7 +35,11 @@ bool UInventoryComponent::AddItem(FName ItemName, int32 Count)
 	}
 
 	int32 RemainingCount = Count;
-
+	
+	// 显示 Toast 消息
+	FString Message = FString::Printf(TEXT("Add %d %s"), Count, *ItemName.ToString());
+	UGameHelper::ShowToast(GetOwner(), Message);
+	
 	if (ItemData.MaxStackSize > 1)
 	{
 		FInventorySlot* ExistingSlot = FindInventorySlot(ItemName);
