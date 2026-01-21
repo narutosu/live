@@ -171,7 +171,7 @@ AItemActor* UItemManager::DropItem(UObject* WorldContextObject, const FVector& L
 			UE_LOG(LogTemp, Error, TEXT("Failed to spawn ItemActor at location: %s"), *Location.ToString());
 		}
 		FVector Offset = FVector(0,0,-50);//这个可以加到配置,目的是让物品掉到贴近地面
-		DroppedItem->PlayDropAnimation(DroppedItem->GetActorLocation()+Offset, 300.0f, 200.0f, 1.0f);
+		DroppedItem->PlayDropAnimation(DroppedItem->GetActorLocation()+Offset, 200.0f, 200.0f, 1.0f);
 		return DroppedItem;
 	}
 

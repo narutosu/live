@@ -11,8 +11,8 @@
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnItemAdded, FName, ItemName, int32, NewCount);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnItemRemoved, FName, ItemName, int32, NewCount);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnItemEquipped, FName, ItemName, EEquipmentSlot, Slot);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnItemUnequipped, FName, ItemName, EEquipmentSlot, Slot);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnItemEquipped, FName, ItemName);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnItemUnequipped, FName, ItemName);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGoldChanged, int32, NewGold);
 
 USTRUCT(BlueprintType)
@@ -64,13 +64,10 @@ public:
 	bool EquipItem(FName ItemName);
 
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
-	bool UnequipItem(EEquipmentSlot Slot);
+	bool UnequipItem(FName ItemName);
 
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	bool IsEquipped(FName ItemName) const;
-
-	UFUNCTION(BlueprintCallable, Category = "Inventory")
-	FName GetEquippedItemName(EEquipmentSlot Slot) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	TArray<FInventorySlot> GetInventorySlots() const { return InventorySlots; }
@@ -117,7 +114,7 @@ protected:
 
 	TArray<FInventorySlot> InventorySlots;
 
-	TMap<EEquipmentSlot, FName> EquippedItems;
+	TSet<FName> EquippedItems;
 
 	int32 Gold;
 

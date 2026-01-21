@@ -12,7 +12,7 @@ UInventoryComponent::UInventoryComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
 	SetIsReplicatedByDefault(true);
-	MaxInventorySize = 20;
+	MaxInventorySize = 9;
 	Gold = 0;
 }
 
@@ -65,6 +65,12 @@ bool UInventoryComponent::AddItem(FName ItemName, int32 Count)
 		EmptySlot->ItemInstance = FItemInstance(ItemData.ItemID, ItemName, ToAdd);
 		RemainingCount -= ToAdd;
 		OnItemAdded.Broadcast(ItemName, EmptySlot->ItemInstance.StackCount);
+		
+		// 如果是装备类物品，自动装备
+		if (ItemData.ItemType == EItemType::Equipment)
+		{
+			EquipItem(ItemName);
+		}
 	}
 
 	return RemainingCount == 0;
@@ -126,7 +132,7 @@ int32 UInventoryComponent::GetItemCount(FName ItemName) const
 bool UInventoryComponent::EquipItem(FName ItemName)
 {
 	FItemData ItemData = UItemManager::Get()->GetItemData(ItemName);
-	if (ItemData.ItemID == 0 || ItemData.ItemType != EItemType::Equipment || ItemData.EquipmentSlot == EEquipmentSlot::None)
+	if (ItemData.ItemID == 0 || ItemData.ItemType != EItemType::Equipment)
 	{
 		return false;
 	}
@@ -137,32 +143,29 @@ bool UInventoryComponent::EquipItem(FName ItemName)
 		return false;
 	}
 
-	EEquipmentSlot TargetSlot = ItemData.EquipmentSlot;
-
-	if (EquippedItems.Contains(TargetSlot))
-	{
-		FName OldEquippedItemName = EquippedItems[TargetSlot];
-		UnequipItem(TargetSlot);
-	}
+	// 如果该物品已经装备，先卸载
+	// if (EquippedItems.Contains(ItemName))
+	// {
+	// 	UnequipItem(ItemName);
+	// }
 
 	Slot->ItemInstance.bIsEquipped = true;
-	EquippedItems.Add(TargetSlot, ItemName);
+	EquippedItems.Add(ItemName);
 
 	ApplyItemEffects(ItemData);
 
-	OnItemEquipped.Broadcast(ItemName, TargetSlot);
+	OnItemEquipped.Broadcast(ItemName);
 
 	return true;
 }
 
-bool UInventoryComponent::UnequipItem(EEquipmentSlot Slot)
+bool UInventoryComponent::UnequipItem(FName ItemName)
 {
-	if (!EquippedItems.Contains(Slot))
+	if (!EquippedItems.Contains(ItemName))
 	{
 		return false;
 	}
 
-	FName ItemName = EquippedItems[Slot];
 	FInventorySlot* InventorySlot = FindInventorySlot(ItemName);
 	if (InventorySlot)
 	{
@@ -175,32 +178,16 @@ bool UInventoryComponent::UnequipItem(EEquipmentSlot Slot)
 		RemoveItemEffects(ItemData);
 	}
 
-	EquippedItems.Remove(Slot);
+	EquippedItems.Remove(ItemName);
 
-	OnItemUnequipped.Broadcast(ItemName, Slot);
+	OnItemUnequipped.Broadcast(ItemName);
 
 	return true;
 }
 
 bool UInventoryComponent::IsEquipped(FName ItemName) const
 {
-	for (const TPair<EEquipmentSlot, FName>& Pair : EquippedItems)
-	{
-		if (Pair.Value == ItemName)
-		{
-			return true;
-		}
-	}
-	return false;
-}
-
-FName UInventoryComponent::GetEquippedItemName(EEquipmentSlot Slot) const
-{
-	if (EquippedItems.Contains(Slot))
-	{
-		return EquippedItems[Slot];
-	}
-	return NAME_None;
+	return EquippedItems.Contains(ItemName);
 }
 
 
