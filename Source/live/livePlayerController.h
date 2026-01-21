@@ -67,6 +67,30 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Input")
 	TObjectPtr<UInputAction> AutoAttackAction;
 
+	/** Skill 1 Input Action */
+	UPROPERTY(EditAnywhere, Category="Input")
+	TObjectPtr<UInputAction> Skill1Action;
+
+	/** Skill 2 Input Action */
+	UPROPERTY(EditAnywhere, Category="Input")
+	TObjectPtr<UInputAction> Skill2Action;
+
+	/** Skill 3 Input Action */
+	UPROPERTY(EditAnywhere, Category="Input")
+	TObjectPtr<UInputAction> Skill3Action;
+
+	/** Skill 4 Input Action */
+	UPROPERTY(EditAnywhere, Category="Input")
+	TObjectPtr<UInputAction> Skill4Action;
+
+	/** Skill 5 Input Action */
+	UPROPERTY(EditAnywhere, Category="Input")
+	TObjectPtr<UInputAction> Skill5Action;
+
+	/** Skill 6 Input Action */
+	UPROPERTY(EditAnywhere, Category="Input")
+	TObjectPtr<UInputAction> Skill6Action;
+
 	/** True if the controlled character should navigate to the mouse cursor. */
 	uint32 bMoveToMouseCursor : 1;
 
@@ -138,11 +162,26 @@ protected:
 	void OnSetDestinationRightClickTriggered();
 	/** Auto Attack input handler */
 	void OnAutoAttackTriggered();
+	/** Skill 1 input handler */
+	void OnSkill1Triggered();
+	/** Skill 2 input handler */
+	void OnSkill2Triggered();
+	/** Skill 3 input handler */
+	void OnSkill3Triggered();
+	/** Skill 4 input handler */
+	void OnSkill4Triggered();
+	/** Skill 5 input handler */
+	void OnSkill5Triggered();
+	/** Skill 6 input handler */
+	void OnSkill6Triggered();
 	/** 追踪更新回调 */
 	void UpdateTracking();
 
 	/** 拾取物品更新回调 */
 	void UpdateItemPickup();
+
+	/** Helper function to cast skill by index */
+	void CastSkillByIndex(int32 SkillIndex);
 
 	/** 设置角色行为状态 */
 	void SetCharacterState(ECharacterBehaviorState NewState);

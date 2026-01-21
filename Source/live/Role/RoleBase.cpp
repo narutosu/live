@@ -277,6 +277,16 @@ void ARoleBase::AddStartupGameplayAbilities()
 	if (GetLocalRole() == ROLE_Authority && !bAbilitiesInitialized)
 	{
 		ApplyPassiveGameplayEffects();
+		
+		// Learn initial skills
+		if (SkillComponent)
+		{
+			for (const FName& SkillName : InitialSkills)
+			{
+				SkillComponent->LearnSkillByName(SkillName);
+			}
+		}
+		
 		bAbilitiesInitialized = true;
 	}
 }

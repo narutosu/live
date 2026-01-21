@@ -169,6 +169,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Abilities)
 	TArray<TSubclassOf<UGameplayEffect>> PassiveGameplayEffects;
 
+	/** Initial skills that will be learned when the character is created */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Skills")
+	TArray<FName> InitialSkills;
+
 	// 新增：应用被动 GameplayEffects
 	UFUNCTION(BlueprintCallable, Category = "Abilities")
 	virtual void ApplyPassiveGameplayEffects();

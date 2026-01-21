@@ -66,6 +66,13 @@ void AlivePlayerController::SetupInputComponent()
 			EnhancedInputComponent->BindAction(SetDestinationRightClickAction, ETriggerEvent::Started, this, &AlivePlayerController::OnSetDestinationRightClickTriggered);
 			// Setup auto attack input event
 			EnhancedInputComponent->BindAction(AutoAttackAction, ETriggerEvent::Started, this, &AlivePlayerController::OnAutoAttackTriggered);
+			// Setup skill input events
+			EnhancedInputComponent->BindAction(Skill1Action, ETriggerEvent::Started, this, &AlivePlayerController::OnSkill1Triggered);
+			EnhancedInputComponent->BindAction(Skill2Action, ETriggerEvent::Started, this, &AlivePlayerController::OnSkill2Triggered);
+			EnhancedInputComponent->BindAction(Skill3Action, ETriggerEvent::Started, this, &AlivePlayerController::OnSkill3Triggered);
+			EnhancedInputComponent->BindAction(Skill4Action, ETriggerEvent::Started, this, &AlivePlayerController::OnSkill4Triggered);
+			EnhancedInputComponent->BindAction(Skill5Action, ETriggerEvent::Started, this, &AlivePlayerController::OnSkill5Triggered);
+			EnhancedInputComponent->BindAction(Skill6Action, ETriggerEvent::Started, this, &AlivePlayerController::OnSkill6Triggered);
 			
 		}
 		else
@@ -209,6 +216,106 @@ void AlivePlayerController::OnSetDestinationRightClickTriggered()
 	}
 
 	UE_LOG(Loglive, Log, TEXT("OnSetDestinationRightClickTriggered: Moving to destination %s"), *CachedDestination.ToString());
+}
+
+// Skill 1 input handler
+void AlivePlayerController::OnSkill1Triggered()
+{
+	CastSkillByIndex(0);
+}
+
+// Skill 2 input handler
+void AlivePlayerController::OnSkill2Triggered()
+{
+	CastSkillByIndex(1);
+}
+
+// Skill 3 input handler
+void AlivePlayerController::OnSkill3Triggered()
+{
+	CastSkillByIndex(2);
+}
+
+// Skill 4 input handler
+void AlivePlayerController::OnSkill4Triggered()
+{
+	CastSkillByIndex(3);
+}
+
+// Skill 5 input handler
+void AlivePlayerController::OnSkill5Triggered()
+{
+	CastSkillByIndex(4);
+}
+
+// Skill 6 input handler
+void AlivePlayerController::OnSkill6Triggered()
+{
+	CastSkillByIndex(5);
+}
+
+// Helper function to cast skill by index
+void AlivePlayerController::CastSkillByIndex(int32 SkillIndex)
+{
+	// 如果处于眩晕状态，不允许操作
+	if (CurrentState == ECharacterBehaviorState::Stunned)
+	{
+		UE_LOG(Loglive, Warning, TEXT("CastSkillByIndex: Cannot cast while stunned"));
+		return;
+	}
+
+	// 获取控制的角色
+	APawn* ControlledPawn = GetPawn();
+	if (!ControlledPawn)
+	{
+		return;
+	}
+
+	ARoleBase* RoleBase = Cast<ARoleBase>(ControlledPawn);
+	if (!RoleBase || !RoleBase->GetSkillComponent())
+	{
+		return;
+	}
+
+	// 检查技能索引是否有效
+	const TArray<FName>& InitialSkills = RoleBase->InitialSkills;
+	if (SkillIndex < 0 || SkillIndex >= InitialSkills.Num())
+	{
+		UE_LOG(Loglive, Warning, TEXT("CastSkillByIndex: Invalid skill index %d (Total skills: %d)"), SkillIndex, InitialSkills.Num());
+		return;
+	}
+
+	// 获取技能名称并释放
+	FName SkillName = InitialSkills[SkillIndex];
+	if (SkillName.IsNone())
+	{
+		UE_LOG(Loglive, Warning, TEXT("CastSkillByIndex: Skill at index %d is None"), SkillIndex);
+		return;
+	}
+
+	// 检查技能类型，如果是被动技能则不允许释放
+	FSkillData SkillData = USkillManager::Get()->GetSkillData(SkillName);
+	if (SkillData.SkillType == ESkillType::Passive)
+	{
+		UE_LOG(Loglive, Warning, TEXT("CastSkillByIndex: Cannot cast passive skill %s at index %d"), *SkillName.ToString(), SkillIndex);
+		return;
+	}
+
+	// 获取当前鼠标位置作为目标位置
+	FVector MouseLocation, MouseDirection;
+	DeprojectMousePositionToWorld(MouseLocation, MouseDirection);
+	FVector TargetLocation = MouseLocation + MouseDirection * 1000.0f;
+
+	// 释放技能
+	bool bCastSuccess = RoleBase->GetSkillComponent()->CastSkillByName(SkillName, TrackedTarget, TargetLocation);
+	if (bCastSuccess)
+	{
+		UE_LOG(Loglive, Log, TEXT("CastSkillByIndex: Successfully cast skill %s at index %d"), *SkillName.ToString(), SkillIndex);
+	}
+	else
+	{
+		UE_LOG(Loglive, Warning, TEXT("CastSkillByIndex: Failed to cast skill %s at index %d"), *SkillName.ToString(), SkillIndex);
+	}
 }
 
 // 新增：寻找范围内最近的敌人

@@ -14,9 +14,6 @@ void AHeroBase::BeginPlay()
 	Super::BeginPlay();
 	SkillComponent->LearnSkillByName(FName("Normal_Attack"));
 	SkillComponent->LearnSkillByName(FName("Critical_Hit"));
-	SkillComponent->LearnSkillByName(FName("Sacrifice"));
-	SkillComponent->LearnSkillByName(FName("Phase_Transfer"));
-	SkillComponent->LearnSkillByName(FName("ShengXinTaiBao"));
 }
 
 void AHeroBase::Tick(float DeltaTime)
