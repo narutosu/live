@@ -103,6 +103,11 @@ bool USkillComponent::LearnSkill(int32 SkillID)
 			{
 				CastSkill(SkillID);
 			}
+			// Register cooldown callback for active skills
+			else if (SkillData.SkillType == ESkillType::Active)
+			{
+				RegisterSkillCooldownCallbackByName(SkillData.SkillName);
+			}
 			
 			OnSkillLevelChanged.Broadcast(SkillID, 1);
 			return true;
@@ -149,6 +154,42 @@ bool USkillComponent::UpgradeSkill(int32 SkillID)
 				return true;
 			}
 		}
+	}
+
+	return false;
+}
+
+bool USkillComponent::ForgetSkill(int32 SkillID)
+{
+	FActiveSkill* ActiveSkill = FindActiveSkill(SkillID);
+	if (!ActiveSkill)
+	{
+		return false;
+	}
+
+	FSkillData SkillData = USkillManager::Get()->GetSkillDataByID(SkillID);
+	if (SkillData.SkillID > 0)
+	{
+		// Unregister cooldown callback for active skills
+		if (SkillData.SkillType == ESkillType::Active)
+		{
+			UnregisterSkillCooldownCallbackByName(SkillData.SkillName);
+		}
+
+		// Remove the ability from the AbilitySystemComponent
+		RemoveAbility(SkillID);
+
+		// Remove the skill from the active skills list using index
+		int32 SkillIndex = ActiveSkills.IndexOfByPredicate([&](const FActiveSkill& Skill) {
+			return Skill.SkillID == SkillID;
+		});
+		
+		if (SkillIndex != INDEX_NONE)
+		{
+			ActiveSkills.RemoveAt(SkillIndex);
+		}
+
+		return true;
 	}
 
 	return false;
@@ -355,4 +396,259 @@ void USkillComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(USkillComponent, ActiveSkills);
+}
+
+FActiveSkill* USkillComponent::FindActiveSkillByName(FName SkillName)
+{
+	FSkillData SkillData = USkillManager::Get()->GetSkillData(SkillName);
+	if (SkillData.SkillID > 0)
+	{
+		return FindActiveSkill(SkillData.SkillID);
+	}
+	return nullptr;
+}
+
+const FActiveSkill* USkillComponent::FindActiveSkillByName(FName SkillName) const
+{
+	FSkillData SkillData = USkillManager::Get()->GetSkillData(SkillName);
+	if (SkillData.SkillID > 0)
+	{
+		return FindActiveSkill(SkillData.SkillID);
+	}
+	return nullptr;
+}
+
+FActiveSkill* USkillComponent::FindActiveSkillBySlot(int32 SlotIndex)
+{
+	for (FActiveSkill& ActiveSkill : ActiveSkills)
+	{
+		if (ActiveSkill.SlotIndex == SlotIndex)
+		{
+			return &ActiveSkill;
+		}
+	}
+	return nullptr;
+}
+
+const FActiveSkill* USkillComponent::FindActiveSkillBySlot(int32 SlotIndex) const
+{
+	for (const FActiveSkill& ActiveSkill : ActiveSkills)
+	{
+		if (ActiveSkill.SlotIndex == SlotIndex)
+		{
+			return &ActiveSkill;
+		}
+	}
+	return nullptr;
+}
+
+void USkillComponent::GetSkillCooldownTimeRemainingAndDurationByName(FName SkillName, float& OutTimeRemaining, float& OutCooldownDuration) const
+{
+	OutTimeRemaining = 0.0f;
+	OutCooldownDuration = 0.0f;
+
+	const FActiveSkill* ActiveSkill = FindActiveSkillByName(SkillName);
+	if (!ActiveSkill)
+	{
+		return;
+	}
+
+	ARoleBase* RoleOwner = Cast<ARoleBase>(GetOwner());
+	if (!RoleOwner || !RoleOwner->GetAbilitySystemComponent() || !ActiveSkill->AbilityHandle.IsValid())
+	{
+		return;
+	}
+
+	FGameplayAbilitySpec* AbilitySpec = RoleOwner->GetAbilitySystemComponent()->FindAbilitySpecFromHandle(ActiveSkill->AbilityHandle);
+	if (AbilitySpec && AbilitySpec->Ability)
+	{
+		float TimeRemaining = 0.0f;
+		float CooldownDuration = 0.0f;
+		const FGameplayAbilityActorInfo* ActorInfo = AbilitySpec->Ability->GetCurrentActorInfo();
+		AbilitySpec->Ability->GetCooldownTimeRemainingAndDuration(AbilitySpec->Handle, ActorInfo, TimeRemaining, CooldownDuration);
+		
+		OutTimeRemaining = TimeRemaining;
+		OutCooldownDuration = CooldownDuration;
+	}
+}
+
+void USkillComponent::GetSkillCooldownTimeRemainingAndDurationBySlot(int32 SlotIndex, float& OutTimeRemaining, float& OutCooldownDuration) const
+{
+	OutTimeRemaining = 0.0f;
+	OutCooldownDuration = 0.0f;
+
+	const FActiveSkill* ActiveSkill = FindActiveSkillBySlot(SlotIndex);
+	if (!ActiveSkill)
+	{
+		return;
+	}
+
+	ARoleBase* RoleOwner = Cast<ARoleBase>(GetOwner());
+	if (!RoleOwner || !RoleOwner->GetAbilitySystemComponent() || !ActiveSkill->AbilityHandle.IsValid())
+	{
+		return;
+	}
+
+	FGameplayAbilitySpec* AbilitySpec = RoleOwner->GetAbilitySystemComponent()->FindAbilitySpecFromHandle(ActiveSkill->AbilityHandle);
+	if (AbilitySpec && AbilitySpec->Ability)
+	{
+		float TimeRemaining = 0.0f;
+		float CooldownDuration = 0.0f;
+		const FGameplayAbilityActorInfo* ActorInfo = AbilitySpec->Ability->GetCurrentActorInfo();
+		AbilitySpec->Ability->GetCooldownTimeRemainingAndDuration(AbilitySpec->Handle, ActorInfo, TimeRemaining, CooldownDuration);
+		
+		OutTimeRemaining = TimeRemaining;
+		OutCooldownDuration = CooldownDuration;
+	}
+}
+
+void USkillComponent::RegisterSkillCooldownCallbackByName(FName SkillName)
+{
+	FActiveSkill* ActiveSkill = FindActiveSkillByName(SkillName);
+	if (ActiveSkill)
+	{
+		RegisterCooldownTagEventForSkill(*ActiveSkill);
+	}
+}
+
+void USkillComponent::RegisterSkillCooldownCallbackBySlot(int32 SlotIndex)
+{
+	FActiveSkill* ActiveSkill = FindActiveSkillBySlot(SlotIndex);
+	if (ActiveSkill)
+	{
+		RegisterCooldownTagEventForSkill(*ActiveSkill);
+	}
+}
+
+void USkillComponent::OnGameplayTagChanged(const FGameplayTag Tag, int32 NewCount)
+{
+	ARoleBase* RoleOwner = Cast<ARoleBase>(GetOwner());
+	if (!RoleOwner || !RoleOwner->GetAbilitySystemComponent())
+	{
+		return;
+	}
+
+	// Find which skill this tag belongs to
+	for (FActiveSkill& ActiveSkill : ActiveSkills)
+	{
+		if (!ActiveSkill.AbilityHandle.IsValid())
+		{
+			continue;
+		}
+
+		FGameplayAbilitySpec* AbilitySpec = RoleOwner->GetAbilitySystemComponent()->FindAbilitySpecFromHandle(ActiveSkill.AbilityHandle);
+		if (!AbilitySpec || !AbilitySpec->Ability)
+		{
+			continue;
+		}
+
+		// Check if this tag is one of the ability's cooldown tags
+		const FGameplayTagContainer* CooldownTags = AbilitySpec->Ability->GetCooldownTags();
+		if (CooldownTags && CooldownTags->HasTag(Tag))
+		{
+			FSkillData SkillData = USkillManager::Get()->GetSkillDataByID(ActiveSkill.SkillID);
+			if (SkillData.SkillID > 0)
+			{
+				float TimeRemaining = 0.0f;
+				float CooldownDuration = 0.0f;
+				const FGameplayAbilityActorInfo* ActorInfo = RoleOwner->GetAbilitySystemComponent()->AbilityActorInfo.Get();
+				AbilitySpec->Ability->GetCooldownTimeRemainingAndDuration(AbilitySpec->Handle, ActorInfo, TimeRemaining, CooldownDuration);
+
+				// Broadcast by skill name
+				OnSkillCooldownChangedByName.Broadcast(SkillData.SkillName, TimeRemaining, CooldownDuration, ActiveSkill.SlotIndex);
+
+				// Broadcast by slot index
+				if (ActiveSkill.SlotIndex >= 0 && ActiveSkill.SlotIndex < 6)
+				{
+					OnSkillCooldownChangedBySlot.Broadcast(ActiveSkill.SlotIndex, TimeRemaining, CooldownDuration, SkillData.SkillName);
+				}
+			}
+			break;
+		}
+	}
+}
+
+void USkillComponent::RegisterCooldownTagEventForSkill(FActiveSkill& ActiveSkill)
+{
+	ARoleBase* RoleOwner = Cast<ARoleBase>(GetOwner());
+	if (!RoleOwner || !RoleOwner->GetAbilitySystemComponent() || !ActiveSkill.AbilityHandle.IsValid())
+	{
+		return;
+	}
+
+	FGameplayAbilitySpec* AbilitySpec = RoleOwner->GetAbilitySystemComponent()->FindAbilitySpecFromHandle(ActiveSkill.AbilityHandle);
+	if (!AbilitySpec || !AbilitySpec->Ability)
+	{
+		return;
+	}
+
+	// Register for all cooldown tags of this ability
+	const FGameplayTagContainer* CooldownTags = AbilitySpec->Ability->GetCooldownTags();
+	if (!CooldownTags)
+	{
+		return;
+	}
+	for (const FGameplayTag& CooldownTag : *CooldownTags)
+	{
+		FDelegateHandle DelegateHandle = RoleOwner->GetAbilitySystemComponent()->RegisterGameplayTagEvent(
+			CooldownTag,
+			EGameplayTagEventType::AnyCountChange
+		).AddUObject(this, &USkillComponent::OnGameplayTagChanged);
+		
+		// Store the delegate handle for later unregistration
+		ActiveSkill.CooldownDelegateHandles.Add(DelegateHandle);
+	}
+}
+
+void USkillComponent::UnregisterCooldownTagEventForSkill(FActiveSkill& ActiveSkill)
+{
+	ARoleBase* RoleOwner = Cast<ARoleBase>(GetOwner());
+	if (!RoleOwner || !RoleOwner->GetAbilitySystemComponent() || !ActiveSkill.AbilityHandle.IsValid())
+	{
+		return;
+	}
+
+	FGameplayAbilitySpec* AbilitySpec = RoleOwner->GetAbilitySystemComponent()->FindAbilitySpecFromHandle(ActiveSkill.AbilityHandle);
+	if (!AbilitySpec || !AbilitySpec->Ability)
+	{
+		return;
+	}
+
+	// Unregister all delegate handles for this skill
+	const FGameplayTagContainer* CooldownTags = AbilitySpec->Ability->GetCooldownTags();
+	if (!CooldownTags)
+	{
+		return;
+	}
+	
+	int32 HandleIndex = 0;
+	for (const FGameplayTag& CooldownTag : *CooldownTags)
+	{
+		if (ActiveSkill.CooldownDelegateHandles.IsValidIndex(HandleIndex) && ActiveSkill.CooldownDelegateHandles[HandleIndex].IsValid())
+		{
+			RoleOwner->GetAbilitySystemComponent()->UnregisterGameplayTagEvent(ActiveSkill.CooldownDelegateHandles[HandleIndex], CooldownTag, EGameplayTagEventType::AnyCountChange);
+		}
+		HandleIndex++;
+	}
+	
+	// Clear the stored handles
+	ActiveSkill.CooldownDelegateHandles.Empty();
+}
+
+void USkillComponent::UnregisterSkillCooldownCallbackByName(FName SkillName)
+{
+	FActiveSkill* ActiveSkill = FindActiveSkillByName(SkillName);
+	if (ActiveSkill)
+	{
+		UnregisterCooldownTagEventForSkill(*ActiveSkill);
+	}
+}
+
+void USkillComponent::UnregisterSkillCooldownCallbackBySlot(int32 SlotIndex)
+{
+	FActiveSkill* ActiveSkill = FindActiveSkillBySlot(SlotIndex);
+	if (ActiveSkill)
+	{
+		UnregisterCooldownTagEventForSkill(*ActiveSkill);
+	}
 }
