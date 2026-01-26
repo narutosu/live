@@ -9,6 +9,7 @@
 #include "GAS/Attribute/GSRoleAttributeSet.h"
 #include "Skill/SkillComponent.h"
 #include "Item/InventoryComponent.h"
+#include "Net/UnrealNetwork.h"
 #include "RoleBase.generated.h"
 
 
@@ -61,6 +62,10 @@ protected:
 	/** The level of this character, should not be modified directly once it has already spawned */
 	UPROPERTY(EditAnywhere, Replicated, Category = Abilities)
 	int32 CharacterLevel;
+
+	/** Skill points available for upgrading skills */
+	UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "Skills")
+	int32 SkillPoints;
 
 	UPROPERTY()
 	int32 bAbilitiesInitialized;
@@ -120,6 +125,18 @@ public:
 	/** Sets experience needed to level up */
 	UFUNCTION(BlueprintCallable, Category = "Character")
 	virtual void SetExperienceToLevelUp(float NewExperienceToLevelUp);
+
+	/** Returns current skill points */
+	UFUNCTION(BlueprintCallable, Category = "Skills")
+	virtual int32 GetSkillPoints() const;
+
+	/** Adds skill points */
+	UFUNCTION(BlueprintCallable, Category = "Skills")
+	virtual void AddSkillPoints(int32 Amount);
+
+	/** Uses skill points, returns true if successful */
+	UFUNCTION(BlueprintCallable, Category = "Skills")
+	virtual bool UseSkillPoints(int32 Amount);
 	
 	//属性回调 - 内部使用
 	virtual void HandleHealthChanged(const FOnAttributeChangeData& Data, bool bIsCriticalHit = false);

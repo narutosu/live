@@ -181,6 +181,7 @@ protected:
 	void UpdateItemPickup();
 
 	/** Helper function to cast skill by index */
+	UFUNCTION(BlueprintCallable)
 	void CastSkillByIndex(int32 SkillIndex);
 
 	/** 设置角色行为状态 */

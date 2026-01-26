@@ -74,7 +74,13 @@ public:
 	bool UpgradeSkill(int32 SkillID);
 
 	UFUNCTION(BlueprintCallable, Category = "Skill")
+	bool UpgradeSkillBySlot(int32 SlotIndex);
+
+	UFUNCTION(BlueprintCallable, Category = "Skill")
 	bool ForgetSkill(int32 SkillID);
+
+	UFUNCTION(BlueprintCallable, Category = "Skill")
+	bool ForgetSkillByName(FName SkillName);
 
 	UFUNCTION(BlueprintCallable, Category = "Skill")
 	bool CastSkill(int32 SkillID, AActor* Target = nullptr, const FVector& TargetLocation = FVector::ZeroVector);

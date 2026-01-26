@@ -29,6 +29,7 @@ ARoleBase::ARoleBase()
 	InventoryComponent = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComponent"));
 
 	CharacterLevel = 1;
+	SkillPoints = 0;
 	bAbilitiesInitialized = false;
 }
 
@@ -61,6 +62,7 @@ void ARoleBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetim
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(ARoleBase, CharacterLevel);
+	DOREPLIFETIME(ARoleBase, SkillPoints);
 }
 
 UAbilitySystemComponent* ARoleBase::GetAbilitySystemComponent() const
@@ -297,8 +299,17 @@ void ARoleBase::RemoveStartupGameplayAbilities()
 	{
 		FGameplayEffectQuery Query;
 		Query.EffectSource = this;
-		AbilitySystemComponent->RemoveActiveEffects(Query);
+		int32 Num = AbilitySystemComponent->RemoveActiveEffects(Query);
 		bAbilitiesInitialized = false;
+		
+		// Learn initial skills
+		if (SkillComponent)
+		{
+			for (const FName& SkillName : InitialSkills)
+			{
+				SkillComponent->ForgetSkillByName(SkillName);
+			}
+		}
 	}
 }
 
@@ -377,6 +388,29 @@ void ARoleBase::SetExperienceToLevelUp(float NewExperienceToLevelUp)
 	}
 }
 
+int32 ARoleBase::GetSkillPoints() const
+{
+	return SkillPoints;
+}
+
+void ARoleBase::AddSkillPoints(int32 Amount)
+{
+	if (Amount > 0)
+	{
+		SkillPoints += Amount;
+	}
+}
+
+bool ARoleBase::UseSkillPoints(int32 Amount)
+{
+	if (Amount > 0 && SkillPoints >= Amount)
+	{
+		SkillPoints -= Amount;
+		return true;
+	}
+	return false;
+}
+
 void ARoleBase::HandleLevelUp()
 {
 	if (!RoleAttributeSet)
@@ -405,17 +439,20 @@ void ARoleBase::HandleLevelUp()
 		int32 NewLevel = CurrentLevel + LevelsToGain;
 		// Broadcast level up event
 		OnLevelUp(NewLevel, OldLevel);
-		OnLevelChanged.Broadcast(NewLevel, OldLevel);
+		
 		SkillComponent->CastSkillByName(FName("LevelUp"));
 		// Update character level
 		CharacterLevel = NewLevel;
 		// Update level in attribute set
 		RoleAttributeSet->SetLevel(NewLevel);
+		// Add skill points on level up
+		AddSkillPoints(LevelsToGain);
 		
 		// Re-apply abilities for new level
 		RemoveStartupGameplayAbilities();
 		AddStartupGameplayAbilities();
 		
+		OnLevelChanged.Broadcast(NewLevel, OldLevel);
 		// 这里可能再次触发升级
 		float RemainingExperience = CurrentExperience - (LevelsToGain * ExperienceNeeded);
 		RoleAttributeSet->SetExperience(RemainingExperience);

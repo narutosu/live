@@ -43,31 +43,31 @@ void UGSRoleAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCall
 		TargetCharacter = Cast<ARoleBase>(TargetActor);
 	}
 	
-	if (Data.EvaluatedData.Attribute == GetSpeedAttribute())
-	{
-		if (TargetCharacter)
-		{
-			// Call for all movespeed changes
-			FOnAttributeChangeData ChangeData;
-			ChangeData.NewValue = GetSpeed();
-			ChangeData.OldValue = 0.0f;
-			ChangeData.GEModData = &Data;
-			TargetCharacter->HandleMoveSpeedChanged(ChangeData);
-		}
-	}
-
-	if (Data.EvaluatedData.Attribute == GetManaAttribute())
-	{
-		if (TargetCharacter)
-		{
-			// Call for all mana changes
-			FOnAttributeChangeData ChangeData;
-			ChangeData.NewValue = GetMana();
-			ChangeData.OldValue = 0.0f;
-			ChangeData.GEModData = &Data;
-			TargetCharacter->HandleManaChanged(ChangeData);
-		}
-	}
+	// if (Data.EvaluatedData.Attribute == GetSpeedAttribute())
+	// {
+	// 	if (TargetCharacter)
+	// 	{
+	// 		// Call for all movespeed changes
+	// 		FOnAttributeChangeData ChangeData;
+	// 		ChangeData.NewValue = GetSpeed();
+	// 		ChangeData.OldValue = 0.0f;
+	// 		ChangeData.GEModData = &Data;
+	// 		TargetCharacter->HandleMoveSpeedChanged(ChangeData);
+	// 	}
+	// }
+	//
+	// if (Data.EvaluatedData.Attribute == GetManaAttribute())
+	// {
+	// 	if (TargetCharacter)
+	// 	{
+	// 		// Call for all mana changes
+	// 		FOnAttributeChangeData ChangeData;
+	// 		ChangeData.NewValue = GetMana();
+	// 		ChangeData.OldValue = 0.0f;
+	// 		ChangeData.GEModData = &Data;
+	// 		TargetCharacter->HandleManaChanged(ChangeData);
+	// 	}
+	// }
 
 	// Handle Damage attribute changes - reduce HP by the damage amount
 	if (Data.EvaluatedData.Attribute == GetDamageAttribute())

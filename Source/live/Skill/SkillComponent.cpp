@@ -159,6 +159,84 @@ bool USkillComponent::UpgradeSkill(int32 SkillID)
 	return false;
 }
 
+bool USkillComponent::UpgradeSkillBySlot(int32 SlotIndex)
+{
+	// Check if slot index is valid (0-5)
+	if (SlotIndex < 0 || SlotIndex >= 6)
+	{
+		return false;
+	}
+
+	// Find the skill in the specified slot
+	FActiveSkill* ActiveSkill = FindActiveSkillBySlot(SlotIndex);
+	if (!ActiveSkill)
+	{
+		return false;
+	}
+
+	// Get skill data
+	FSkillData SkillData = USkillManager::Get()->GetSkillDataByID(ActiveSkill->SkillID);
+	if (SkillData.SkillID == 0)
+	{
+		return false;
+	}
+
+	// Check if already at max level
+	if (ActiveSkill->CurrentLevel >= SkillData.MaxLevel)
+	{
+		return false;
+	}
+
+	// Calculate next level
+	int32 NextLevel = ActiveSkill->CurrentLevel + 1;
+	if (!SkillData.RequiredLevels.IsValidIndex(NextLevel - 1))
+	{
+		return false;
+	}
+
+	// Check if character level is sufficient
+	ARoleBase* RoleOwner = Cast<ARoleBase>(GetOwner());
+	if (!RoleOwner || RoleOwner->GetCharacterLevel() < SkillData.RequiredLevels[NextLevel - 1])
+	{
+		return false;
+	}
+
+	// Check if we have enough skill points
+	if (!RoleOwner->UseSkillPoints(1))
+	{
+		return false;
+	}
+
+	// Save skill info
+	int32 SkillID = ActiveSkill->SkillID;
+	FName SkillName = SkillData.SkillName;
+
+	// Forget the old skill (this will remove ability and unregister callbacks)
+	ForgetSkill(SkillID);
+
+	// Learn the skill again at the new level
+	// Note: We need to temporarily set the skill level since LearnSkill always starts at level 1
+	// We'll need to modify LearnSkill or handle this differently
+	
+	// For now, let's implement a simpler approach: just update the level directly
+	// Find the skill again after LearnSkill and update its level
+	if (LearnSkill(SkillID))
+	{
+		// Update the level to the new level
+		FActiveSkill* NewActiveSkill = FindActiveSkill(SkillID);
+		if (NewActiveSkill)
+		{
+			NewActiveSkill->CurrentLevel = NextLevel;
+			OnSkillLevelChanged.Broadcast(SkillID, NextLevel);
+			return true;
+		}
+	}
+
+	// If learning failed, refund the skill point
+	RoleOwner->AddSkillPoints(1);
+	return false;
+}
+
 bool USkillComponent::ForgetSkill(int32 SkillID)
 {
 	FActiveSkill* ActiveSkill = FindActiveSkill(SkillID);
@@ -192,6 +270,16 @@ bool USkillComponent::ForgetSkill(int32 SkillID)
 		return true;
 	}
 
+	return false;
+}
+
+bool USkillComponent::ForgetSkillByName(FName SkillName)
+{
+	FSkillData SkillData = USkillManager::Get()->GetSkillData(SkillName);
+	if (SkillData.SkillID > 0)
+	{
+		return ForgetSkill(SkillData.SkillID);
+	}
 	return false;
 }
 
@@ -464,7 +552,7 @@ void USkillComponent::GetSkillCooldownTimeRemainingAndDurationByName(FName Skill
 	{
 		float TimeRemaining = 0.0f;
 		float CooldownDuration = 0.0f;
-		const FGameplayAbilityActorInfo* ActorInfo = AbilitySpec->Ability->GetCurrentActorInfo();
+		const FGameplayAbilityActorInfo* ActorInfo = RoleOwner->GetAbilitySystemComponent()->AbilityActorInfo.Get();
 		AbilitySpec->Ability->GetCooldownTimeRemainingAndDuration(AbilitySpec->Handle, ActorInfo, TimeRemaining, CooldownDuration);
 		
 		OutTimeRemaining = TimeRemaining;
@@ -494,7 +582,7 @@ void USkillComponent::GetSkillCooldownTimeRemainingAndDurationBySlot(int32 SlotI
 	{
 		float TimeRemaining = 0.0f;
 		float CooldownDuration = 0.0f;
-		const FGameplayAbilityActorInfo* ActorInfo = AbilitySpec->Ability->GetCurrentActorInfo();
+		const FGameplayAbilityActorInfo* ActorInfo = RoleOwner->GetAbilitySystemComponent()->AbilityActorInfo.Get();
 		AbilitySpec->Ability->GetCooldownTimeRemainingAndDuration(AbilitySpec->Handle, ActorInfo, TimeRemaining, CooldownDuration);
 		
 		OutTimeRemaining = TimeRemaining;
