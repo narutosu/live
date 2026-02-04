@@ -44,8 +44,7 @@ void USkillComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActor
 		}
 	}
 }
-
-bool USkillComponent::LearnSkill(int32 SkillID)
+bool USkillComponent::LearnSkill(int32 SkillID, int32 Level)
 {
 	if (HasSkill(SkillID))
 	{
@@ -92,11 +91,11 @@ bool USkillComponent::LearnSkill(int32 SkillID)
 
 			FActiveSkill NewSkill;
 			NewSkill.SkillID = SkillID;
-			NewSkill.CurrentLevel = 1;
+			NewSkill.CurrentLevel = Level;
 			NewSkill.SlotIndex = AvailableSlot;
 			ActiveSkills.Add(NewSkill);
 
-			GrantAbility(SkillID, SkillData);
+			GrantAbility(SkillID, SkillData, Level);
 
 			// Automatically activate passive skills
 			if (SkillData.SkillType == ESkillType::Passive)
@@ -109,11 +108,10 @@ bool USkillComponent::LearnSkill(int32 SkillID)
 				RegisterSkillCooldownCallbackByName(SkillData.SkillName);
 			}
 			
-			OnSkillLevelChanged.Broadcast(SkillID, 1);
+			OnSkillLevelChanged.Broadcast(SkillID, Level);
 			return true;
 		}
 	}
-
 	return false;
 }
 
@@ -189,14 +187,15 @@ bool USkillComponent::UpgradeSkillBySlot(int32 SlotIndex)
 
 	// Calculate next level
 	int32 NextLevel = ActiveSkill->CurrentLevel + 1;
-	if (!SkillData.RequiredLevels.IsValidIndex(NextLevel - 1))
+	int32 RequiredLevel = 0;
+	if (SkillData.RequiredLevels.IsValidIndex(NextLevel - 1))
 	{
-		return false;
+		RequiredLevel = SkillData.RequiredLevels[NextLevel - 1];
 	}
 
 	// Check if character level is sufficient
 	ARoleBase* RoleOwner = Cast<ARoleBase>(GetOwner());
-	if (!RoleOwner || RoleOwner->GetCharacterLevel() < SkillData.RequiredLevels[NextLevel - 1])
+	if (!RoleOwner || RoleOwner->GetCharacterLevel() < RequiredLevel)
 	{
 		return false;
 	}
@@ -215,21 +214,10 @@ bool USkillComponent::UpgradeSkillBySlot(int32 SlotIndex)
 	ForgetSkill(SkillID);
 
 	// Learn the skill again at the new level
-	// Note: We need to temporarily set the skill level since LearnSkill always starts at level 1
-	// We'll need to modify LearnSkill or handle this differently
-	
-	// For now, let's implement a simpler approach: just update the level directly
-	// Find the skill again after LearnSkill and update its level
-	if (LearnSkill(SkillID))
+	if (LearnSkill(SkillID, NextLevel))
 	{
-		// Update the level to the new level
-		FActiveSkill* NewActiveSkill = FindActiveSkill(SkillID);
-		if (NewActiveSkill)
-		{
-			NewActiveSkill->CurrentLevel = NextLevel;
-			OnSkillLevelChanged.Broadcast(SkillID, NextLevel);
-			return true;
-		}
+		OnSkillLevelChanged.Broadcast(SkillID, NextLevel);
+		return true;
 	}
 
 	// If learning failed, refund the skill point
@@ -377,6 +365,17 @@ int32 USkillComponent::GetSkillLevel(int32 SkillID) const
 	return ActiveSkill->CurrentLevel;
 }
 
+int32 USkillComponent::GetSkillLevelBySlot(int32 SlotIndex) const
+{
+	const FActiveSkill* ActiveSkill = FindActiveSkillBySlot(SlotIndex);
+	if (!ActiveSkill)
+	{
+		return 0;
+	}
+
+	return ActiveSkill->CurrentLevel;
+}
+
 bool USkillComponent::HasSkill(int32 SkillID) const
 {
 	return FindActiveSkill(SkillID) != nullptr;
@@ -441,7 +440,7 @@ const FActiveSkill* USkillComponent::FindActiveSkill(int32 SkillID) const
 	return nullptr;
 }
 
-void USkillComponent::GrantAbility(int32 SkillID, const FSkillData& SkillData)
+void USkillComponent::GrantAbility(int32 SkillID, const FSkillData& SkillData, int32 Level)
 {
 	ARoleBase* RoleOwner = Cast<ARoleBase>(GetOwner());
 	if (!RoleOwner || !RoleOwner->GetAbilitySystemComponent())
@@ -453,7 +452,7 @@ void USkillComponent::GrantAbility(int32 SkillID, const FSkillData& SkillData)
 	{
 		UAbilitySystemComponent* ASC = RoleOwner->GetAbilitySystemComponent();
 		FGameplayAbilitySpecHandle Handle = ASC->GiveAbility(
-			FGameplayAbilitySpec(AbilityClass, 1, SkillID, RoleOwner)
+			FGameplayAbilitySpec(AbilityClass, Level, SkillID, RoleOwner)
 		);
 
 		FActiveSkill* ActiveSkill = FindActiveSkill(SkillID);

@@ -107,6 +107,7 @@ struct FSkillData : public FTableRowBase
 		, TargetType(ESkillTargetType::None)
 		, MaxLevel(4)
 		, Icon(nullptr)
+		, RequiredLevels(TArray<int32>({ 1,3, 5, 7 }))
 	{
 	}
 	FSkillLevelData GetLevelData(int32 Level) const;

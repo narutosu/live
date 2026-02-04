@@ -65,7 +65,7 @@ public:
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 	UFUNCTION(BlueprintCallable, Category = "Skill")
-	bool LearnSkill(int32 SkillID);
+	bool LearnSkill(int32 SkillID, int32 Level = 1);
 
 	UFUNCTION(BlueprintCallable, Category = "Skill")
 	bool LearnSkillByName(FName SkillName);
@@ -96,6 +96,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Skill")
 	int32 GetSkillLevel(int32 SkillID) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Skill")
+	int32 GetSkillLevelBySlot(int32 SlotIndex) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Skill")
 	TArray<FActiveSkill> GetLearnedSkills() const { return ActiveSkills; }
@@ -161,7 +164,7 @@ protected:
 	FActiveSkill* FindActiveSkillBySlot(int32 SlotIndex);
 	const FActiveSkill* FindActiveSkillBySlot(int32 SlotIndex) const;
 
-	void GrantAbility(int32 SkillID, const FSkillData& SkillData);
+	void GrantAbility(int32 SkillID, const FSkillData& SkillData, int32 Level = 1);
 
 	void RemoveAbility(int32 SkillID);
 
